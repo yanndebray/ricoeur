@@ -68,10 +68,11 @@ CREATE TABLE IF NOT EXISTS schema_meta (
 );
 
 -- Full-text search index on messages
+-- Column names must match the content table ('messages') for content-sync to work.
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
     conv_id UNINDEXED,
-    msg_id UNINDEXED,
+    id UNINDEXED,
     role UNINDEXED,
     content='messages',
     content_rowid='rowid'
@@ -79,19 +80,19 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 
 -- Triggers to keep FTS in sync
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-    INSERT INTO messages_fts(rowid, content, conv_id, msg_id, role)
+    INSERT INTO messages_fts(rowid, content, conv_id, id, role)
     VALUES (new.rowid, new.content, new.conv_id, new.id, new.role);
 END;
 
 CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, conv_id, msg_id, role)
+    INSERT INTO messages_fts(messages_fts, rowid, content, conv_id, id, role)
     VALUES ('delete', old.rowid, old.content, old.conv_id, old.id, old.role);
 END;
 
 CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, conv_id, msg_id, role)
+    INSERT INTO messages_fts(messages_fts, rowid, content, conv_id, id, role)
     VALUES ('delete', old.rowid, old.content, old.conv_id, old.id, old.role);
-    INSERT INTO messages_fts(rowid, content, conv_id, msg_id, role)
+    INSERT INTO messages_fts(rowid, content, conv_id, id, role)
     VALUES (new.rowid, new.content, new.conv_id, new.id, new.role);
 END;
 
