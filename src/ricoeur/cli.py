@@ -341,6 +341,116 @@ def stats(platform, lang, since, until, fmt):
     conn.close()
 
 
+# ── index ────────────────────────────────────────────────────────────────
+
+
+@cli.command()
+@click.option("--embeddings", "do_embeddings", is_flag=True, help="Only generate embeddings")
+@click.option("--topics", "do_topics", is_flag=True, help="Only run topic modeling")
+@click.option("--analytics", "do_analytics", is_flag=True, help="Only export analytics")
+@click.option("--force", is_flag=True, help="Redo everything, even if cached")
+@click.option("--embed-model", default=None, help="Embedding model (e.g. st:model-name, ollama:model-name)")
+@click.option("--batch-size", default=None, type=int, help="Batch size for embedding")
+@click.option("--device", default=None, type=click.Choice(["auto", "cpu", "cuda", "mps"]), help="Device for embeddings")
+def index(do_embeddings, do_topics, do_analytics, force, embed_model, batch_size, device):
+    """Build the intelligence layer: language detection, embeddings, analytics."""
+    from .indexer import run_index
+
+    home = get_home()
+    cfg = load_config()
+
+    # Resolve defaults from config
+    embed_cfg = cfg.get("embeddings", {})
+    if embed_model is None:
+        embed_model = embed_cfg.get("model", "st:paraphrase-multilingual-mpnet-base-v2")
+    if batch_size is None:
+        batch_size = embed_cfg.get("batch_size", 64)
+    if device is None:
+        device = embed_cfg.get("device", "auto")
+
+    # Flag semantics: no flags → run all available layers
+    any_flag = do_embeddings or do_topics or do_analytics
+    do_languages = not any_flag
+    if not any_flag:
+        do_embeddings = True
+        do_topics = True
+        do_analytics = True
+
+    conn = get_connection()
+
+    # Rich progress tracking
+    with Progress(console=console) as progress:
+        tasks = {}
+
+        def progress_cb(layer: str, current: int, total: int):
+            if layer not in tasks:
+                if total > 0:
+                    tasks[layer] = progress.add_task(
+                        f"[cyan]{layer}", total=total
+                    )
+            if layer in tasks:
+                progress.update(tasks[layer], completed=current)
+
+        stats = run_index(
+            conn,
+            home,
+            do_languages=do_languages,
+            do_embeddings=do_embeddings,
+            do_topics=do_topics,
+            do_analytics=do_analytics,
+            embed_model=embed_model,
+            batch_size=batch_size,
+            device=device,
+            force=force,
+            progress_cb=progress_cb,
+        )
+
+    conn.close()
+    _print_index_stats(stats)
+
+
+def _print_index_stats(stats):
+    """Print a summary table of indexing results."""
+    from .indexer import IndexStats
+
+    console.print()
+    console.rule("[bold]Index summary[/bold]")
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("Layer", style="cyan")
+    table.add_column("Result", justify="right")
+
+    if stats.languages_detected > 0 or stats.languages_skipped == 0:
+        table.add_row("Languages", f"{stats.languages_detected:,} detected")
+    if stats.embeddings_generated > 0 or stats.embeddings_skipped > 1:
+        embed_detail = f"{stats.embeddings_generated:,} generated"
+        if stats.embeddings_skipped > 1:
+            embed_detail += f", {stats.embeddings_skipped:,} cached"
+        table.add_row("Embeddings", embed_detail)
+        if stats.embedding_model:
+            table.add_row("  model", stats.embedding_model)
+        if stats.embedding_dimensions:
+            table.add_row("  dimensions", str(stats.embedding_dimensions))
+    if stats.analytics_conversations > 0:
+        table.add_row(
+            "Analytics",
+            f"{stats.analytics_conversations:,} convs, {stats.analytics_messages:,} msgs",
+        )
+
+    console.print(table)
+
+    # Print errors / warnings
+    for err in stats.errors:
+        if "not yet implemented" in err:
+            console.print(f"  [dim]{err}[/dim]")
+        elif "not installed" in err:
+            console.print(f"  [yellow]⚠ {err}[/yellow]")
+        else:
+            console.print(f"  [red]✗ {err}[/red]")
+
+    console.print()
+
+
 # ── config ───────────────────────────────────────────────────────────────
 
 

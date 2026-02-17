@@ -35,7 +35,7 @@ serve = [
     "uvicorn>=0.27",
 ]
 langdetect = [
-    "fasttext-wheel>=0.9",
+    "fast-langdetect>=0.3",
 ]
 all = [
     "ricoeur[embeddings,topics,analytics,tui,mcp,serve,langdetect]",
