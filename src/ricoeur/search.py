@@ -73,28 +73,39 @@ def fts_search(
         sql += " AND messages_fts.role = ?"
         params.append(role)
 
+    # No GROUP BY — FTS5 auxiliary functions (snippet, highlight) cannot be
+    # used with GROUP BY.  Fetch extra rows and deduplicate in Python,
+    # keeping the best-ranked match per conversation.
     sql += """
-        GROUP BY c.id
         ORDER BY rank
         LIMIT ?
     """
-    params.append(limit)
+    params.append(limit * 5)
 
     rows = conn.execute(sql, params).fetchall()
-    return [
-        SearchResult(
-            conv_id=r["id"],
-            title=r["title"],
-            platform=r["platform"],
-            model=r["model"],
-            created_at=r["created_at"],
-            language=r["language"],
-            topic_id=r["topic_id"],
-            score=abs(r["score"]),
-            snippet=r["snippet"],
+    seen: set[str] = set()
+    results: list[SearchResult] = []
+    for r in rows:
+        cid = r["id"]
+        if cid in seen:
+            continue
+        seen.add(cid)
+        results.append(
+            SearchResult(
+                conv_id=cid,
+                title=r["title"],
+                platform=r["platform"],
+                model=r["model"],
+                created_at=r["created_at"],
+                language=r["language"],
+                topic_id=r["topic_id"],
+                score=abs(r["score"]),
+                snippet=r["snippet"],
+            )
         )
-        for r in rows
-    ]
+        if len(results) >= limit:
+            break
+    return results
 
 
 def _code_search(

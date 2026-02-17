@@ -1,6 +1,6 @@
 [project]
 name = "ricoeur"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local-first archive, search, and intelligence engine for your LLM conversation history."
 readme = "README.md"
 requires-python = ">=3.10"
