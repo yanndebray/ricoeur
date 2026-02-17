@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ricoeur — a local-first archive &amp; search engine for your LLM history</title>
+  <meta name="description" content="Archive, search, and understand your LLM conversation history. Local-first CLI with full-text search, topic discovery, semantic search, and MCP integration." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=DM+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --emerald: #2D6A4F;
+      --emerald-light: #52B788;
+      --emerald-dark: #1B4332;
+      --terracotta: #C4704B;
+      --terracotta-light: #D4916F;
+      --cream: #faf8f5;
+      --cream-dark: #f0ece6;
+      --ink: #1a1a1a;
+      --ink-light: #555;
+      --ink-lighter: #888;
+      --code-bg: #1e2a26;
+      --code-border: #2D6A4F33;
+      --radius: 10px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+      background: var(--cream);
+      color: var(--ink);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* Paper texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.03;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+      background-size: 256px 256px;
+    }
+
+    a { color: var(--emerald); text-decoration: none; transition: color 0.2s; }
+    a:hover { color: var(--emerald-light); }
+
+    code, .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+    .serif { font-family: 'Crimson Pro', 'Georgia', serif; }
+
+    .container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+    /* ── Animations ───────────────────────────────────────────────────── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .animate-hero { animation: fadeInUp 0.8s ease forwards; opacity: 0; }
+    .animate-hero:nth-child(1) { animation-delay: 0.1s; }
+    .animate-hero:nth-child(2) { animation-delay: 0.2s; }
+    .animate-hero:nth-child(3) { animation-delay: 0.3s; }
+    .animate-hero:nth-child(4) { animation-delay: 0.4s; }
+    .animate-hero:nth-child(5) { animation-delay: 0.5s; }
+
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── Navigation ───────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      background: rgba(250, 248, 245, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(45, 106, 79, 0.08);
+      padding: 0 24px;
+    }
+    .nav-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      font-size: 1.05rem;
+      color: var(--ink);
+    }
+    .nav-logo .mark {
+      width: 32px;
+      height: 32px;
+      background: var(--emerald);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-family: 'Crimson Pro', serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      font-style: italic;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--ink-light);
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--emerald); }
+    .nav-links .gh-link svg {
+      width: 20px;
+      height: 20px;
+      fill: var(--ink-light);
+      transition: fill 0.2s;
+      display: block;
+    }
+    .nav-links .gh-link:hover svg { fill: var(--emerald); }
+
+    /* ── Hero ─────────────────────────────────────────────────────────── */
+    .hero {
+      position: relative;
+      padding: 140px 24px 80px;
+      text-align: center;
+      overflow: hidden;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      background: rgba(45, 106, 79, 0.08);
+      border: 1px solid rgba(45, 106, 79, 0.15);
+      border-radius: 100px;
+      font-size: 0.82rem;
+      color: var(--emerald);
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
+    .hero-badge .dot {
+      width: 6px;
+      height: 6px;
+      background: var(--emerald-light);
+      border-radius: 50%;
+    }
+    .hero h1 {
+      font-family: 'Crimson Pro', serif;
+      font-size: clamp(2.4rem, 5.5vw, 3.8rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--ink);
+      margin-bottom: 20px;
+      letter-spacing: -0.02em;
+    }
+    .hero h1 em {
+      color: var(--emerald);
+      font-style: italic;
+    }
+    .hero .subtitle {
+      font-size: 1.15rem;
+      color: var(--ink-light);
+      max-width: 560px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: var(--emerald);
+      color: white;
+    }
+    .btn-primary:hover {
+      background: var(--emerald-dark);
+      color: white;
+      box-shadow: 0 4px 16px rgba(45, 106, 79, 0.3);
+      transform: translateY(-1px);
+    }
+    .btn-secondary {
+      background: white;
+      color: var(--ink);
+      border: 1px solid rgba(0,0,0,0.12);
+    }
+    .btn-secondary:hover {
+      border-color: var(--emerald);
+      color: var(--emerald);
+      box-shadow: var(--shadow-sm);
+      transform: translateY(-1px);
+    }
+    .btn svg { width: 18px; height: 18px; }
+
+    /* Hermeneutic circle SVG */
+    .hero-decoration {
+      position: absolute;
+      right: -60px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 400px;
+      height: 400px;
+      opacity: 0.06;
+      pointer-events: none;
+    }
+
+    /* ── Install Banner ──────────────────────────────────────────────── */
+    .install {
+      padding: 40px 24px;
+      text-align: center;
+    }
+    .install-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--code-bg);
+      padding: 14px 20px 14px 24px;
+      border-radius: var(--radius);
+      border: 1px solid rgba(82, 183, 136, 0.15);
+      box-shadow: var(--shadow-md);
+    }
+    .install-box code {
+      color: #d4d4d4;
+      font-size: 0.95rem;
+    }
+    .install-box .prompt { color: var(--emerald-light); }
+    .copy-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 6px;
+      padding: 6px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+    .copy-btn:hover { background: rgba(255,255,255,0.15); }
+    .copy-btn svg { width: 16px; height: 16px; stroke: #aaa; fill: none; }
+
+    /* ── Section Layout ──────────────────────────────────────────────── */
+    .section {
+      padding: 80px 24px;
+    }
+    .section-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .section-header h2 {
+      font-family: 'Crimson Pro', serif;
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 12px;
+    }
+    .section-header p {
+      color: var(--ink-light);
+      font-size: 1.05rem;
+      max-width: 560px;
+      margin: 0 auto;
+    }
+    .section-label {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--emerald);
+      margin-bottom: 8px;
+    }
+
+    /* ── Features Grid ───────────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .feature-card {
+      background: white;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: all 0.25s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-lg);
+      border-color: rgba(45, 106, 79, 0.12);
+    }
+    .feature-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 1.2rem;
+    }
+    .feature-icon.emerald  { background: rgba(45, 106, 79, 0.1); color: var(--emerald); }
+    .feature-icon.terra    { background: rgba(196, 112, 75, 0.1); color: var(--terracotta); }
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--ink);
+    }
+    .feature-card p {
+      font-size: 0.9rem;
+      color: var(--ink-light);
+      line-height: 1.6;
+    }
+
+    /* ── Quick Start ─────────────────────────────────────────────────── */
+    .quickstart { background: var(--cream-dark); }
+    .code-tabs {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      margin-bottom: 0;
+    }
+    .tab-btn {
+      padding: 10px 24px;
+      background: #283a33;
+      border: none;
+      color: #8a9b93;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-top-left-radius: 8px;
+      border-top-right-radius: 8px;
+    }
+    .tab-btn.active {
+      background: var(--code-bg);
+      color: var(--emerald-light);
+    }
+    .tab-btn:hover:not(.active) { color: #b0c4b8; }
+    .code-block {
+      background: var(--code-bg);
+      border-radius: 0 var(--radius) var(--radius) var(--radius);
+      padding: 24px 28px;
+      overflow-x: auto;
+      box-shadow: var(--shadow-lg);
+      display: none;
+    }
+    .code-block.active { display: block; }
+    .code-block pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      line-height: 1.8;
+      color: #d4d4d4;
+    }
+    .code-block .comment { color: #6a7d74; }
+    .code-block .command { color: var(--emerald-light); }
+    .code-block .flag { color: var(--terracotta-light); }
+    .code-block .string { color: #a8d8b9; }
+    .code-block .output { color: #8a9b93; }
+
+    /* ── CLI Reference ───────────────────────────────────────────────── */
+    .cli-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .cli-card {
+      background: white;
+      border: 1px solid rgba(0,0,0,0.06);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      transition: all 0.25s ease;
+    }
+    .cli-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: rgba(45, 106, 79, 0.12);
+    }
+    .cli-card .cmd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.88rem;
+      font-weight: 500;
+      color: var(--emerald);
+      margin-bottom: 6px;
+    }
+    .cli-card .desc {
+      font-size: 0.84rem;
+      color: var(--ink-light);
+      line-height: 1.5;
+    }
+
+    /* ── Quote ────────────────────────────────────────────────────────── */
+    .quote-section {
+      padding: 80px 24px;
+      text-align: center;
+      position: relative;
+    }
+    .quote-mark {
+      font-family: 'Crimson Pro', serif;
+      font-size: 8rem;
+      line-height: 1;
+      color: var(--emerald);
+      opacity: 0.1;
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      user-select: none;
+    }
+    .quote-section blockquote {
+      font-family: 'Crimson Pro', serif;
+      font-size: clamp(1.3rem, 3vw, 1.7rem);
+      font-style: italic;
+      color: var(--ink);
+      max-width: 640px;
+      margin: 0 auto 16px;
+      line-height: 1.6;
+      position: relative;
+    }
+    .quote-section cite {
+      display: block;
+      font-family: 'DM Sans', sans-serif;
+      font-style: normal;
+      font-size: 0.92rem;
+      color: var(--ink-lighter);
+      font-weight: 500;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid rgba(0,0,0,0.06);
+      padding: 48px 24px 36px;
+    }
+    .footer-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      color: var(--ink);
+    }
+    .footer-brand .mark {
+      width: 28px;
+      height: 28px;
+      background: var(--emerald);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-family: 'Crimson Pro', serif;
+      font-size: 1.05rem;
+      font-weight: 700;
+      font-style: italic;
+    }
+    .footer-tagline {
+      color: var(--ink-lighter);
+      font-size: 0.84rem;
+    }
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+    .footer-links a {
+      color: var(--ink-light);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+    .footer-links a:hover { color: var(--emerald); }
+
+    /* ── Responsive ───────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .hero { padding: 120px 20px 60px; }
+      .hero h1 { font-size: 2rem; }
+      .hero .subtitle { font-size: 1rem; }
+      .hero-decoration { display: none; }
+      .section { padding: 56px 20px; }
+      .features-grid { grid-template-columns: 1fr; gap: 14px; }
+      .cli-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+      .install-box { flex-direction: column; gap: 10px; padding: 16px; }
+      .footer-inner { flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; }
+    }
+    @media (max-width: 480px) {
+      .cli-grid { grid-template-columns: 1fr; }
+      .hero-buttons { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ──────────────────────────────────────────────────── -->
+  <nav>
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">
+        <span class="mark">r</span>
+        ricoeur
+      </a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#quickstart">Usage</a></li>
+        <li><a href="#cli">CLI</a></li>
+        <li><a href="https://github.com/slevin48/ricoeur#readme" target="_blank" rel="noopener">Docs</a></li>
+        <li><a href="https://pypi.org/project/ricoeur/" target="_blank" rel="noopener">PyPI</a></li>
+        <li>
+          <a href="https://github.com/slevin48/ricoeur" class="gh-link" target="_blank" rel="noopener" aria-label="GitHub">
+            <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          </a>
+        </li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- ── Hero ────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="container">
+      <div class="animate-hero">
+        <span class="hero-badge"><span class="dot"></span> v0.1.1 — local-first CLI</span>
+      </div>
+      <h1 class="animate-hero">Archive. Search. <em>Understand.</em></h1>
+      <p class="subtitle animate-hero">A local-first archive, search, and intelligence engine<br>for your LLM conversation history.</p>
+      <div class="hero-buttons animate-hero">
+        <a href="#quickstart" class="btn btn-primary">
+          Get Started
+          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        </a>
+        <a href="https://github.com/slevin48/ricoeur" class="btn btn-secondary" target="_blank" rel="noopener">
+          <svg viewBox="0 0 16 16" fill="currentColor" style="width:16px;height:16px"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+
+    <!-- Hermeneutic circle decoration -->
+    <svg class="hero-decoration" viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="200" cy="200" r="180" stroke="#2D6A4F" stroke-width="1.5"/>
+      <circle cx="200" cy="200" r="140" stroke="#2D6A4F" stroke-width="1"/>
+      <circle cx="200" cy="200" r="100" stroke="#2D6A4F" stroke-width="0.75"/>
+      <circle cx="200" cy="200" r="60" stroke="#2D6A4F" stroke-width="0.5"/>
+      <!-- Arcs suggesting interpretive circulation -->
+      <path d="M200 20 A180 180 0 0 1 380 200" stroke="#C4704B" stroke-width="2" stroke-dasharray="8 6"/>
+      <path d="M380 200 A180 180 0 0 1 200 380" stroke="#2D6A4F" stroke-width="2" stroke-dasharray="8 6"/>
+      <path d="M200 380 A180 180 0 0 1 20 200" stroke="#C4704B" stroke-width="2" stroke-dasharray="8 6"/>
+      <path d="M20 200 A180 180 0 0 1 200 20" stroke="#2D6A4F" stroke-width="2" stroke-dasharray="8 6"/>
+      <!-- Text arcs -->
+      <text font-family="Crimson Pro, serif" font-size="11" fill="#2D6A4F" opacity="0.5">
+        <textPath href="#textPath1">part → whole → part → whole</textPath>
+      </text>
+      <defs>
+        <path id="textPath1" d="M60 200 A140 140 0 0 1 340 200"/>
+      </defs>
+    </svg>
+  </section>
+
+  <!-- ── Install Banner ──────────────────────────────────────────────── -->
+  <div class="install reveal">
+    <div class="install-box">
+      <code><span class="prompt">$</span> pip install ricoeur</code>
+      <button class="copy-btn" onclick="copyInstall()" aria-label="Copy install command">
+        <svg id="copy-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+        </svg>
+        <svg id="check-icon" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Features ────────────────────────────────────────────────────── -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Features</span>
+        <h2>Everything you need to understand your AI history</h2>
+        <p>Import, search, analyze, and explore your conversations across platforms — entirely on your machine.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card reveal">
+          <div class="feature-icon emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </div>
+          <h3>Local-First</h3>
+          <p>Your data stays on your machine. SQLite database, no cloud required. Full ownership of your conversation archive.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon terra">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3>Multi-Platform</h3>
+          <p>Import from ChatGPT, Claude, and more. One unified archive across all your LLM conversations.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <h3>Full-Text Search</h3>
+          <p>FTS5-powered instant search across all messages. Filter by platform, language, model, date, or role.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon terra">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <h3>Topic Discovery</h3>
+          <p>BERTopic-powered topic modeling. Discover themes and patterns in your conversation history automatically.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </div>
+          <h3>Semantic Search</h3>
+          <p>Embedding-powered similarity search using sentence-transformers or Ollama. Find conversations by meaning, not keywords.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon terra">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0118 0"/><path d="M4 11V8"/><path d="M22 11v3"/><path d="M8 15h0"/><path d="M16 15h0"/><rect x="2" y="17" width="20" height="4" rx="2"/></svg>
+          </div>
+          <h3>MCP Integration</h3>
+          <p>Expose your archive as a Model Context Protocol server. Let your current AI access your past conversations.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Quick Start ─────────────────────────────────────────────────── -->
+  <section id="quickstart" class="section quickstart">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">Quick Start</span>
+        <h2>Up and running in minutes</h2>
+        <p>Import your data, search your history, discover patterns.</p>
+      </div>
+      <div class="code-tabs reveal">
+        <div class="tab-bar">
+          <button class="tab-btn active" onclick="switchTab('terminal')">Terminal</button>
+          <button class="tab-btn" onclick="switchTab('search')">Search Examples</button>
+        </div>
+        <div id="tab-terminal" class="code-block active">
+<pre><span class="comment"># Install ricoeur</span>
+<span class="command">pip install</span> ricoeur
+
+<span class="comment"># Initialize database</span>
+<span class="command">ricoeur init</span>
+<span class="output">Initialized ricoeur at ~/.ricoeur</span>
+
+<span class="comment"># Import your ChatGPT export</span>
+<span class="command">ricoeur import chatgpt</span> <span class="string">~/Downloads/export.zip</span>
+<span class="output">Import from ChatGPT</span>
+<span class="output">  Parsed:       3,756 conversations (42,618 messages)</span>
+<span class="output">  New:          3,756</span>
+
+<span class="comment"># Import Claude conversations too</span>
+<span class="command">ricoeur import claude</span> <span class="string">~/Downloads/claude-export.json</span>
+
+<span class="comment"># Check your archive stats</span>
+<span class="command">ricoeur stats</span></pre>
+        </div>
+        <div id="tab-search" class="code-block">
+<pre><span class="comment"># Full-text search</span>
+<span class="command">ricoeur search</span> <span class="string">"neural networks"</span>
+<span class="output">Found 24 results for "neural networks"</span>
+
+<span class="comment"># Filter by platform and language</span>
+<span class="command">ricoeur search</span> <span class="string">"API design"</span> <span class="flag">--platform</span> chatgpt <span class="flag">--lang</span> en
+
+<span class="comment"># Search only in code blocks</span>
+<span class="command">ricoeur search</span> <span class="string">"async def"</span> <span class="flag">--code</span> <span class="flag">--limit</span> 10
+
+<span class="comment"># Read a specific conversation</span>
+<span class="command">ricoeur show</span> <span class="string">abc123</span> <span class="flag">--format</span> rich
+
+<span class="comment"># Show only code from a conversation</span>
+<span class="command">ricoeur show</span> <span class="string">abc123</span> <span class="flag">--code</span>
+
+<span class="comment"># Export results as JSON</span>
+<span class="command">ricoeur search</span> <span class="string">"Python"</span> <span class="flag">--format</span> json</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CLI Reference ───────────────────────────────────────────────── -->
+  <section id="cli" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="section-label">CLI Reference</span>
+        <h2>10 commands, one archive</h2>
+        <p>A focused, composable interface for your conversation history.</p>
+      </div>
+      <div class="cli-grid">
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur init</div>
+          <div class="desc">Initialize a new ricoeur database and config at ~/.ricoeur</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur import</div>
+          <div class="desc">Import from ChatGPT or Claude exports (.json or .zip)</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur search</div>
+          <div class="desc">Full-text search with filters for platform, language, model, date, and role</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur show</div>
+          <div class="desc">Display a full conversation in rich, markdown, or JSON format</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur stats</div>
+          <div class="desc">Analytics dashboard with counts by platform, model, and language</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur topics</div>
+          <div class="desc">Discover themes with BERTopic-powered topic modeling</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur index</div>
+          <div class="desc">Build embeddings and summaries for semantic search</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur mcp</div>
+          <div class="desc">Start a Model Context Protocol server for AI-to-archive access</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur tui</div>
+          <div class="desc">Launch the interactive terminal UI for browsing conversations</div>
+        </div>
+        <div class="cli-card reveal">
+          <div class="cmd">ricoeur serve</div>
+          <div class="desc">Start a FastAPI web server with REST endpoints</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Philosophy Quote ────────────────────────────────────────────── -->
+  <section class="quote-section reveal">
+    <span class="quote-mark">&ldquo;</span>
+    <blockquote>To understand oneself is to understand oneself in front of the text.</blockquote>
+    <cite>Paul Ricoeur</cite>
+  </section>
+
+  <!-- ── Footer ──────────────────────────────────────────────────────── -->
+  <footer>
+    <div class="footer-inner">
+      <div>
+        <div class="footer-brand">
+          <span class="mark">r</span>
+          ricoeur
+        </div>
+        <p class="footer-tagline">Your narrative, searchable.</p>
+      </div>
+      <ul class="footer-links">
+        <li><a href="https://github.com/slevin48/ricoeur" target="_blank" rel="noopener">GitHub</a></li>
+        <li><a href="https://pypi.org/project/ricoeur/" target="_blank" rel="noopener">PyPI</a></li>
+        <li><a href="https://github.com/slevin48/ricoeur#readme" target="_blank" rel="noopener">Documentation</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <!-- ── JavaScript ──────────────────────────────────────────────────── -->
+  <script>
+    // Copy install command
+    function copyInstall() {
+      navigator.clipboard.writeText('pip install ricoeur').then(() => {
+        const copyIcon = document.getElementById('copy-icon');
+        const checkIcon = document.getElementById('check-icon');
+        copyIcon.style.display = 'none';
+        checkIcon.style.display = 'block';
+        setTimeout(() => {
+          copyIcon.style.display = 'block';
+          checkIcon.style.display = 'none';
+        }, 2000);
+      });
+    }
+
+    // Tab switching
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.code-block').forEach(block => block.classList.remove('active'));
+      event.currentTarget.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    // Scroll reveal with IntersectionObserver
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Smooth scroll for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>
