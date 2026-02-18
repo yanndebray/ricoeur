@@ -76,7 +76,28 @@ ricoeur search "import pandas" --code
 ricoeur search "MCP" --format json
 ```
 
-Semantic search finds conceptually related conversations even when exact keywords don't match. For example, searching "deployment strategies" will surface conversations about CI/CD, Docker, and Kubernetes even if they never use the word "deployment".
+### Why semantic search?
+
+Keyword search only finds exact word matches. Semantic search finds **conceptually related** conversations — even when the exact words don't appear.
+
+**Query: "how to containerize applications"**
+
+```
+$ ricoeur search "how to containerize applications" --keyword
+Found 3 results for "how to containerize applications" (keyword)
+
+$ ricoeur search "how to containerize applications" --semantic
+Found 20 results for "how to containerize applications" (semantic)
+ #   Score    Date        Title
+ 1   0.5515   2025-07-29  Free docker deployment options
+ 2   0.5152   2026-01-28  Secure Clawdbot Setup
+ 3   0.5081   2025-03-11  Docker noVNC Setup
+ 4   0.5014   2025-09-21  HTML upload and serve
+ 5   0.4782   2022-12-27  Wasm vs Container Comparison
+ ...
+```
+
+Keyword found 3 results matching the literal words. Semantic found 20 — including Docker, Wasm, and container deployment conversations that never mention "containerize applications".
 
 ## Index
 
