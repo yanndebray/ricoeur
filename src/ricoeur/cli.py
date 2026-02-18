@@ -247,6 +247,9 @@ def show(conversation_id, msg_filter, summary, code, fmt):
             conn.close()
             return
 
+    # Use the resolved full ID for all subsequent queries
+    conversation_id = conv["id"]
+
     if fmt == "json":
         msgs = conn.execute(
             "SELECT * FROM messages WHERE conv_id = ? ORDER BY timestamp", (conversation_id,)
