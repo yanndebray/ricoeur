@@ -372,6 +372,19 @@
       color: var(--ink-light);
       line-height: 1.6;
     }
+    .badge-soon {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(196, 112, 75, 0.1);
+      color: var(--terracotta);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
 
     /* ── Quick Start ─────────────────────────────────────────────────── */
     .quickstart { background: var(--cream-dark); }
@@ -665,8 +678,8 @@
           <div class="feature-icon terra">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
-          <h3>Multi-Platform</h3>
-          <p>Import from ChatGPT, Claude, and more. One unified archive across all your LLM conversations.</p>
+          <h3>Multi-Platform <span class="badge-soon">Coming soon</span></h3>
+          <p>Import from ChatGPT today. Claude, Gemini, and custom JSON imports coming soon.</p>
         </div>
         <div class="feature-card reveal">
           <div class="feature-icon emerald">
@@ -679,7 +692,7 @@
           <div class="feature-icon terra">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </div>
-          <h3>Topic Discovery</h3>
+          <h3>Topic Discovery <span class="badge-soon">Coming soon</span></h3>
           <p>BERTopic-powered topic modeling. Discover themes and patterns in your conversation history automatically.</p>
         </div>
         <div class="feature-card reveal">
@@ -693,7 +706,7 @@
           <div class="feature-icon terra">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11a9 9 0 0118 0"/><path d="M4 11V8"/><path d="M22 11v3"/><path d="M8 15h0"/><path d="M16 15h0"/><rect x="2" y="17" width="20" height="4" rx="2"/></svg>
           </div>
-          <h3>MCP Integration</h3>
+          <h3>MCP Integration <span class="badge-soon">Coming soon</span></h3>
           <p>Expose your archive as a Model Context Protocol server. Let your current AI access your past conversations.</p>
         </div>
       </div>
@@ -727,9 +740,6 @@
 <span class="output">  Parsed:       3,756 conversations (42,618 messages)</span>
 <span class="output">  New:          3,756</span>
 
-<span class="comment"># Import Claude conversations too</span>
-<span class="command">ricoeur import claude</span> <span class="string">~/Downloads/claude-export.json</span>
-
 <span class="comment"># Check your archive stats</span>
 <span class="command">ricoeur stats</span></pre>
         </div>
@@ -750,8 +760,7 @@
 <span class="comment"># Search only in code blocks</span>
 <span class="command">ricoeur search</span> <span class="string">"async def"</span> <span class="flag">--code</span> <span class="flag">--limit</span> 10
 
-<span class="comment"># Export results as JSON</span>
-<span class="command">ricoeur search</span> <span class="string">"Python"</span> <span class="flag">--format</span> json</pre>
+<span class="comment"># More output formats coming: json, full, ids</span></pre>
         </div>
       </div>
     </div>
@@ -762,7 +771,7 @@
     <div class="container">
       <div class="section-header reveal">
         <span class="section-label">CLI Reference</span>
-        <h2>10 commands, one archive</h2>
+        <h2>Your CLI toolkit</h2>
         <p>A focused, composable interface for your conversation history.</p>
       </div>
       <div class="cli-grid">
@@ -772,7 +781,7 @@
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur import</div>
-          <div class="desc">Import from ChatGPT or Claude exports (.json or .zip)</div>
+          <div class="desc">Import from ChatGPT exports (.json or .zip)</div>
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur search</div>
@@ -787,7 +796,7 @@
           <div class="desc">Analytics dashboard with counts by platform, model, and language</div>
         </div>
         <div class="cli-card reveal">
-          <div class="cmd">ricoeur topics</div>
+          <div class="cmd">ricoeur topics <span class="badge-soon">Soon</span></div>
           <div class="desc">Discover themes with BERTopic-powered topic modeling</div>
         </div>
         <div class="cli-card reveal">
@@ -795,15 +804,15 @@
           <div class="desc">Build embeddings and summaries for semantic search</div>
         </div>
         <div class="cli-card reveal">
-          <div class="cmd">ricoeur mcp</div>
+          <div class="cmd">ricoeur mcp <span class="badge-soon">Soon</span></div>
           <div class="desc">Start a Model Context Protocol server for AI-to-archive access</div>
         </div>
         <div class="cli-card reveal">
-          <div class="cmd">ricoeur tui</div>
+          <div class="cmd">ricoeur tui <span class="badge-soon">Soon</span></div>
           <div class="desc">Launch the interactive terminal UI for browsing conversations</div>
         </div>
         <div class="cli-card reveal">
-          <div class="cmd">ricoeur serve</div>
+          <div class="cmd">ricoeur serve <span class="badge-soon">Soon</span></div>
           <div class="desc">Start a FastAPI web server with REST endpoints</div>
         </div>
       </div>

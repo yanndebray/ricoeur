@@ -16,9 +16,6 @@ uv run ricoeur init
 # Import your ChatGPT export
 uv run ricoeur import chatgpt ~/Downloads/chatgpt-export/conversations.json
 
-# Import your Claude export
-uv run ricoeur import claude ~/Downloads/claude-export/conversations.json
-
 # Build the intelligence layer (language detection, embeddings, analytics)
 uv run ricoeur index
 
@@ -35,7 +32,6 @@ uv run ricoeur search "thermal simulation"
 |---------|-------------|
 | `ricoeur init` | Initialize database and config at `~/.ricoeur/` |
 | `ricoeur import chatgpt <path>` | Import from ChatGPT export (.json or .zip) |
-| `ricoeur import claude <path>` | Import from Claude export (.json or .zip) |
 | `ricoeur search <query>` | Search across all conversations (hybrid by default) |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
@@ -72,8 +68,7 @@ ricoeur search "strategie marketing" --lang fr --since 2025-01-01
 # Search only in code blocks (auto-uses keyword mode)
 ricoeur search "import pandas" --code
 
-# Output formats: table (default), json, full, ids
-ricoeur search "MCP" --format json
+# More output formats coming soon: json, full, ids
 ```
 
 ### Why semantic search?
@@ -145,8 +140,10 @@ ricoeur import chatgpt conversations.json --update
 ricoeur import chatgpt conversations.json --dry-run
 
 # Only import recent conversations
-ricoeur import claude conversations.json --since 2025-01-01
+ricoeur import chatgpt conversations.json --since 2025-01-01
 ```
+
+> **Coming soon:** Claude, Gemini, and custom JSON imports.
 
 ## Optional extras
 
@@ -159,19 +156,19 @@ uv sync --extra langdetect
 # Semantic search with sentence-transformers
 uv sync --extra embeddings
 
-# Topic modeling with BERTopic
+# Topic modeling with BERTopic (coming soon)
 uv sync --extra topics
 
 # Analytics with DuckDB + Parquet
 uv sync --extra analytics
 
-# Terminal UI
+# Terminal UI (coming soon)
 uv sync --extra tui
 
-# MCP server for Claude Desktop
+# MCP server for Claude Desktop (coming soon)
 uv sync --extra mcp
 
-# Web API server
+# Web API server (coming soon)
 uv sync --extra serve
 
 # Everything
@@ -192,13 +189,14 @@ model = "st:paraphrase-multilingual-mpnet-base-v2"
 batch_size = 64
 device = "auto"
 
-[topics]
-min_cluster_size = 15
-n_topics = "auto"
-
-[summarize]
-enabled = false
-model = "ollama:llama3.2"
+# Topics and summarize config — coming soon
+# [topics]
+# min_cluster_size = 15
+# n_topics = "auto"
+#
+# [summarize]
+# enabled = false
+# model = "ollama:llama3.2"
 ```
 
 Override the data directory with the `RICOEUR_HOME` environment variable.
@@ -211,8 +209,8 @@ Override the data directory with the `RICOEUR_HOME` environment variable.
 ├── ricoeur.db           # SQLite database (FTS5 search)
 ├── analytics/           # Parquet files for DuckDB
 ├── embeddings/          # Sentence-transformer vectors
-├── models/              # Saved BERTopic models
-└── attachments/         # Extracted files
+├── models/              # Saved BERTopic models (coming soon)
+└── attachments/         # Extracted files (coming soon)
 ```
 
 ## License
