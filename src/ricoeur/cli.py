@@ -193,21 +193,24 @@ def search(query, platform, lang, since, until, model, topic, role, code, semant
     else:
         table = Table(show_header=True, header_style="bold")
         table.add_column("#", style="dim", width=3)
+        table.add_column("ID", style="cyan", width=10)
         table.add_column("Score", width=7)
         table.add_column("Date", width=10)
         table.add_column("Platform", width=8)
         table.add_column("Title")
         for i, r in enumerate(results, 1):
             date = r.created_at[:10] if r.created_at else "?"
+            short_id = r.conv_id[:8] if r.conv_id else "?"
             table.add_row(
                 str(i),
+                short_id,
                 f"{r.score:{score_fmt}}",
                 date,
                 r.platform,
                 r.title or "Untitled",
             )
         console.print(table)
-        console.print("\nUse [bold]ricoeur show <id>[/bold] to read a conversation.")
+        console.print("\nUse [bold]ricoeur show <id>[/bold] to read a conversation (partial IDs work).")
 
 
 # ── show ─────────────────────────────────────────────────────────────────
@@ -223,12 +226,26 @@ def show(conversation_id, msg_filter, summary, code, fmt):
     """Display a full conversation."""
     conn = get_connection()
 
+    # Support partial ID prefix matching
     conv = conn.execute(
         "SELECT * FROM conversations WHERE id = ?", (conversation_id,)
     ).fetchone()
     if not conv:
-        console.print(f"[red]Conversation not found:[/red] {conversation_id}")
-        return
+        matches = conn.execute(
+            "SELECT * FROM conversations WHERE id LIKE ?", (conversation_id + "%",)
+        ).fetchall()
+        if len(matches) == 1:
+            conv = matches[0]
+        elif len(matches) > 1:
+            console.print(f"[yellow]Ambiguous ID prefix:[/yellow] {conversation_id} matches {len(matches)} conversations")
+            for m in matches[:5]:
+                console.print(f"  {m['id'][:12]}  {m['title'] or 'Untitled'}")
+            conn.close()
+            return
+        else:
+            console.print(f"[red]Conversation not found:[/red] {conversation_id}")
+            conn.close()
+            return
 
     if fmt == "json":
         msgs = conn.execute(
