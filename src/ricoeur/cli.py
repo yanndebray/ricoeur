@@ -126,33 +126,58 @@ def _print_import_stats(platform: str, stats, dry_run: bool):
 @click.option("--topic", default=None, type=int, help="Filter by topic ID")
 @click.option("--role", default=None, help="Filter by message role")
 @click.option("--code", is_flag=True, help="Search only in code blocks")
+@click.option("--semantic", is_flag=True, help="Use semantic (embedding) search only")
+@click.option("--keyword", is_flag=True, help="Use keyword (FTS5) search only")
 @click.option("--limit", default=20, help="Max results")
 @click.option("--format", "fmt", default="table", type=click.Choice(["table", "json", "full", "ids"]))
-def search(query, platform, lang, since, until, model, topic, role, code, limit, fmt):
+def search(query, platform, lang, since, until, model, topic, role, code, semantic, keyword, limit, fmt):
     """Search across all conversations."""
-    from .search import fts_search
+    from .search import search_dispatch
+
+    if semantic and keyword:
+        console.print("[red]Error:[/red] --semantic and --keyword are mutually exclusive.")
+        raise SystemExit(1)
+
+    home = get_home()
+    cfg = load_config()
+    embed_cfg = cfg.get("embeddings", {})
+    model_spec = embed_cfg.get("model", "st:paraphrase-multilingual-mpnet-base-v2")
+    device = embed_cfg.get("device", "auto")
 
     conn = get_connection()
-    results = fts_search(
-        conn,
-        query,
-        platform=platform,
-        lang=lang,
-        since=since,
-        until=until,
-        model=model,
-        topic=topic,
-        role=role,
-        code=code,
-        limit=limit,
-    )
+    try:
+        results, mode = search_dispatch(
+            conn,
+            query,
+            home,
+            semantic=semantic,
+            keyword=keyword,
+            model_spec=model_spec,
+            platform=platform,
+            lang=lang,
+            since=since,
+            until=until,
+            model=model,
+            topic=topic,
+            role=role,
+            code=code,
+            limit=limit,
+            device=device,
+        )
+    except RuntimeError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        conn.close()
+        raise SystemExit(1)
     conn.close()
 
     if not results:
-        console.print(f"No results for \"{query}\"")
+        console.print(f"No results for \"{query}\" ({mode})")
         return
 
-    console.print(f"Found {len(results)} results for \"{query}\"\n")
+    console.print(f"Found {len(results)} results for \"{query}\" ({mode})\n")
+
+    # Use .4f for hybrid/semantic scores (small floats), .2f for keyword
+    score_fmt = ".4f" if mode in ("hybrid", "semantic") else ".2f"
 
     if fmt == "ids":
         for r in results:
@@ -168,7 +193,7 @@ def search(query, platform, lang, since, until, model, topic, role, code, limit,
     else:
         table = Table(show_header=True, header_style="bold")
         table.add_column("#", style="dim", width=3)
-        table.add_column("Score", width=5)
+        table.add_column("Score", width=7)
         table.add_column("Date", width=10)
         table.add_column("Platform", width=8)
         table.add_column("Title")
@@ -176,7 +201,7 @@ def search(query, platform, lang, since, until, model, topic, role, code, limit,
             date = r.created_at[:10] if r.created_at else "?"
             table.add_row(
                 str(i),
-                f"{r.score:.2f}",
+                f"{r.score:{score_fmt}}",
                 date,
                 r.platform,
                 r.title or "Untitled",
