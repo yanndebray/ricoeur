@@ -36,7 +36,7 @@ uv run ricoeur search "thermal simulation"
 | `ricoeur init` | Initialize database and config at `~/.ricoeur/` |
 | `ricoeur import chatgpt <path>` | Import from ChatGPT export (.json or .zip) |
 | `ricoeur import claude <path>` | Import from Claude export (.json or .zip) |
-| `ricoeur search <query>` | Full-text search across all conversations |
+| `ricoeur search <query>` | Search across all conversations (hybrid by default) |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
 | `ricoeur index` | Build intelligence layer (languages, embeddings, analytics) |
@@ -45,20 +45,38 @@ uv run ricoeur search "thermal simulation"
 
 ## Search
 
+ricoeur supports three search modes:
+
+| Mode | Flag | How it works |
+|------|------|-------------|
+| **Hybrid** | *(default)* | Combines keyword + semantic via Reciprocal Rank Fusion (RRF) |
+| **Keyword** | `--keyword` | FTS5 full-text search with BM25 ranking |
+| **Semantic** | `--semantic` | Cosine similarity against pre-computed embeddings |
+
+When embeddings are available (after `ricoeur index`), search automatically uses hybrid mode. If no embeddings exist, it falls back to keyword search. Flags like `--code` or `--role` also force keyword mode since they rely on FTS5.
+
 ```bash
-# Basic full-text search
-ricoeur search "streamlit dashboard"
+# Hybrid search (default — combines keyword + semantic)
+ricoeur search "deployment strategies"
+
+# Force keyword-only (FTS5)
+ricoeur search "streamlit dashboard" --keyword
+
+# Force semantic-only (cosine similarity)
+ricoeur search "how to containerize apps" --semantic
 
 # Filter by platform, language, date
 ricoeur search "error fix" --platform chatgpt --lang en
 ricoeur search "strategie marketing" --lang fr --since 2025-01-01
 
-# Search only in code blocks
+# Search only in code blocks (auto-uses keyword mode)
 ricoeur search "import pandas" --code
 
 # Output formats: table (default), json, full, ids
 ricoeur search "MCP" --format json
 ```
+
+Semantic search finds conceptually related conversations even when exact keywords don't match. For example, searching "deployment strategies" will surface conversations about CI/CD, Docker, and Kubernetes even if they never use the word "deployment".
 
 ## Index
 

@@ -592,7 +592,7 @@
   <section class="hero">
     <div class="container">
       <div class="animate-hero">
-        <span class="hero-badge"><span class="dot"></span> v0.2.0 — local-first CLI</span>
+        <span class="hero-badge"><span class="dot"></span> v0.3.0 — semantic &amp; hybrid search</span>
       </div>
       <h1 class="animate-hero">Archive. Search. <em>Understand.</em></h1>
       <p class="subtitle animate-hero">A local-first archive, search, and intelligence engine<br>for your LLM conversation history.</p>
@@ -734,21 +734,21 @@
 <span class="command">ricoeur stats</span></pre>
         </div>
         <div id="tab-search" class="code-block">
-<pre><span class="comment"># Full-text search</span>
-<span class="command">ricoeur search</span> <span class="string">"neural networks"</span>
-<span class="output">Found 24 results for "neural networks"</span>
+<pre><span class="comment"># Hybrid search (keyword + semantic, default)</span>
+<span class="command">ricoeur search</span> <span class="string">"deployment strategies"</span>
+<span class="output">Found 18 results for "deployment strategies" (hybrid)</span>
+
+<span class="comment"># Semantic search — find by meaning, not keywords</span>
+<span class="command">ricoeur search</span> <span class="string">"how to containerize apps"</span> <span class="flag">--semantic</span>
+
+<span class="comment"># Keyword search (FTS5)</span>
+<span class="command">ricoeur search</span> <span class="string">"neural networks"</span> <span class="flag">--keyword</span>
 
 <span class="comment"># Filter by platform and language</span>
 <span class="command">ricoeur search</span> <span class="string">"API design"</span> <span class="flag">--platform</span> chatgpt <span class="flag">--lang</span> en
 
 <span class="comment"># Search only in code blocks</span>
 <span class="command">ricoeur search</span> <span class="string">"async def"</span> <span class="flag">--code</span> <span class="flag">--limit</span> 10
-
-<span class="comment"># Read a specific conversation</span>
-<span class="command">ricoeur show</span> <span class="string">abc123</span> <span class="flag">--format</span> rich
-
-<span class="comment"># Show only code from a conversation</span>
-<span class="command">ricoeur show</span> <span class="string">abc123</span> <span class="flag">--code</span>
 
 <span class="comment"># Export results as JSON</span>
 <span class="command">ricoeur search</span> <span class="string">"Python"</span> <span class="flag">--format</span> json</pre>
@@ -776,7 +776,7 @@
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur search</div>
-          <div class="desc">Full-text search with filters for platform, language, model, date, and role</div>
+          <div class="desc">Hybrid, semantic, or keyword search with filters for platform, language, model, and date</div>
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur show</div>
