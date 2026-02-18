@@ -19,6 +19,9 @@ uv run ricoeur import chatgpt ~/Downloads/chatgpt-export/conversations.json
 # Import your Claude export
 uv run ricoeur import claude ~/Downloads/claude-export/conversations.json
 
+# Build the intelligence layer (language detection, embeddings, analytics)
+uv run ricoeur index
+
 # See what you've got
 uv run ricoeur stats
 
@@ -36,6 +39,7 @@ uv run ricoeur search "thermal simulation"
 | `ricoeur search <query>` | Full-text search across all conversations |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
+| `ricoeur index` | Build intelligence layer (languages, embeddings, analytics) |
 | `ricoeur config show` | Print current configuration |
 | `ricoeur config set <key> <value>` | Update a config value |
 
@@ -56,6 +60,42 @@ ricoeur search "import pandas" --code
 ricoeur search "MCP" --format json
 ```
 
+## Index
+
+After importing, build the intelligence layer:
+
+```bash
+# Run all layers: language detection, embeddings, analytics
+ricoeur index
+
+# Second run skips what's already cached
+ricoeur index
+
+# Force a full rebuild
+ricoeur index --force
+
+# Run specific layers only
+ricoeur index --embeddings
+ricoeur index --analytics
+
+# Use a different embedding model
+ricoeur index --embed-model ollama:nomic-embed-text
+ricoeur index --embed-model st:all-MiniLM-L6-v2 --device cpu
+```
+
+Each layer requires its optional extra:
+
+| Layer | Extra | What it does |
+|-------|-------|-------------|
+| Languages | `langdetect` | Detects language per conversation (stored in DB) |
+| Embeddings | `embeddings` | Generates sentence-transformer vectors (`~/.ricoeur/embeddings/`) |
+| Analytics | `analytics` | Exports conversations & messages to Parquet (`~/.ricoeur/analytics/`) |
+
+```bash
+# Install all index dependencies at once
+uv sync --extra langdetect --extra embeddings --extra analytics
+```
+
 ## Import options
 
 ```bash
@@ -74,6 +114,9 @@ ricoeur import claude conversations.json --since 2025-01-01
 Install additional capabilities as needed:
 
 ```bash
+# Language detection
+uv sync --extra langdetect
+
 # Semantic search with sentence-transformers
 uv sync --extra embeddings
 
