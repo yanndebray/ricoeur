@@ -385,6 +385,19 @@
       margin-left: 8px;
       vertical-align: middle;
     }
+    .badge-new {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(82, 183, 136, 0.15);
+      color: var(--emerald);
+      margin-left: 8px;
+      vertical-align: middle;
+    }
 
     /* ── Quick Start ─────────────────────────────────────────────────── */
     .quickstart { background: var(--cream-dark); }
@@ -605,7 +618,7 @@
   <section class="hero">
     <div class="container">
       <div class="animate-hero">
-        <span class="hero-badge"><span class="dot"></span> v0.3.4 · MIT Licensed</span>
+        <span class="hero-badge"><span class="dot"></span> v0.4.0 · New: interactive TUI · MIT Licensed</span>
       </div>
       <h1 class="animate-hero">Archive. Search. <em>Understand.</em></h1>
       <p class="subtitle animate-hero">A local-first archive, search, and intelligence engine<br>for your LLM conversation history.</p>
@@ -687,6 +700,13 @@
           </div>
           <h3>Full-Text Search</h3>
           <p>FTS5-powered instant search across all messages. Filter by platform, language, model, date, or role.</p>
+        </div>
+        <div class="feature-card reveal">
+          <div class="feature-icon terra">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </div>
+          <h3>Interactive TUI <span class="badge-new">New</span></h3>
+          <p>Browse, search, and read your entire archive without leaving the terminal. Markdown-rendered conversations, instant keyword search, keyboard-driven.</p>
         </div>
         <div class="feature-card reveal">
           <div class="feature-icon terra">
@@ -808,7 +828,7 @@
           <div class="desc">Start a Model Context Protocol server for AI-to-archive access</div>
         </div>
         <div class="cli-card reveal">
-          <div class="cmd">ricoeur tui <span class="badge-soon">Soon</span></div>
+          <div class="cmd">ricoeur tui</div>
           <div class="desc">Launch the interactive terminal UI for browsing conversations</div>
         </div>
         <div class="cli-card reveal">
