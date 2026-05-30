@@ -16,6 +16,9 @@ uv run ricoeur init
 # Import your ChatGPT export
 uv run ricoeur import chatgpt ~/Downloads/chatgpt-export/conversations.json
 
+# ...or your Claude export (Settings > Privacy > Export data)
+uv run ricoeur import claude ~/Downloads/claude-export/conversations.json
+
 # Build the intelligence layer (language detection, embeddings, analytics)
 uv run ricoeur index
 
@@ -32,6 +35,7 @@ uv run ricoeur search "thermal simulation"
 |---------|-------------|
 | `ricoeur init` | Initialize database and config at `~/.ricoeur/` |
 | `ricoeur import chatgpt <path>` | Import from ChatGPT export (.json or .zip) |
+| `ricoeur import claude <path>` | Import from Claude export (.json or .zip) |
 | `ricoeur search <query>` | Search across all conversations (hybrid by default) |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
@@ -141,9 +145,16 @@ ricoeur import chatgpt conversations.json --dry-run
 
 # Only import recent conversations
 ricoeur import chatgpt conversations.json --since 2025-01-01
+
+# The same flags work for Claude exports
+ricoeur import claude conversations.json --update
 ```
 
-> **Coming soon:** Claude, Gemini, and custom JSON imports.
+ChatGPT and Claude exports are both supported. Each platform ships a
+`conversations.json` (sometimes inside a `.zip`) — point ricoeur at either the
+JSON file or the zip and it will find the conversations.
+
+> **Coming soon:** Gemini and custom JSON imports.
 
 ## Optional extras
 

@@ -134,10 +134,16 @@ def _import_one(
 
 
 def _extract_content(msg: dict[str, Any]) -> str:
-    """Extract text from a Claude message."""
+    """Extract text from a Claude message.
+
+    Claude's export gives each message a flattened, human-readable ``text``
+    field that already concatenates the visible response and (expanded)
+    thinking while omitting tool-call noise. Prefer it; fall back to
+    reconstructing from the structured ``content`` blocks when it is absent.
+    """
     # Claude messages can have "text" directly or "content" as a list of blocks
     text = msg.get("text")
-    if text:
+    if text and text.strip():
         return text
 
     content = msg.get("content", "")
@@ -150,8 +156,12 @@ def _extract_content(msg: dict[str, Any]) -> str:
             if isinstance(block, str):
                 parts.append(block)
             elif isinstance(block, dict):
-                if block.get("type") == "text":
+                btype = block.get("type")
+                if btype == "text":
                     parts.append(block.get("text", ""))
-        return "\n".join(parts)
+                elif btype == "thinking":
+                    parts.append(block.get("thinking", ""))
+                # tool_use / tool_result blocks are interface noise — skip them
+        return "\n".join(p for p in parts if p)
 
     return ""
