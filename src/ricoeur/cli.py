@@ -525,6 +525,30 @@ def config_set(key: str, value: str):
         console.print(f"[red]Error:[/red] {e}")
 
 
+# ── tui ──────────────────────────────────────────────────────────────────
+
+
+@cli.command()
+def tui():
+    """Launch the interactive terminal UI to browse and search conversations."""
+    from .db import db_path
+
+    home = get_home()
+    if not db_path(home).exists():
+        console.print(
+            "[red]No database found.[/red] Run [bold]ricoeur init[/bold] and import "
+            "a conversation export first."
+        )
+        raise SystemExit(1)
+
+    try:
+        from .tui import run as run_tui
+    except ModuleNotFoundError as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise SystemExit(1)
+    run_tui(home)
+
+
 # ── version ──────────────────────────────────────────────────────────────
 
 
