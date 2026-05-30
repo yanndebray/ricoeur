@@ -39,6 +39,7 @@ uv run ricoeur search "thermal simulation"
 | `ricoeur search <query>` | Search across all conversations (hybrid by default) |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
+| `ricoeur tui` | Interactive terminal UI to browse and search |
 | `ricoeur index` | Build intelligence layer (languages, embeddings, analytics) |
 | `ricoeur config show` | Print current configuration |
 | `ricoeur config set <key> <value>` | Update a config value |
@@ -97,6 +98,30 @@ Found 20 results for "how to containerize applications" (semantic)
 ```
 
 Keyword found 3 results matching the literal words. Semantic found 20 — including Docker, Wasm, and container deployment conversations that never mention "containerize applications".
+
+## Terminal UI
+
+Prefer browsing interactively? Launch the TUI:
+
+```bash
+# Install the optional dependency
+uv sync --extra tui
+
+# Launch
+uv run ricoeur tui
+```
+
+It opens to your most recent conversations. Type a query and press **Enter** to
+keyword-search; clear the box and press Enter to return to the recent list.
+Select a row (Enter) to read the full conversation, rendered as Markdown.
+
+| Key | Action |
+|-----|--------|
+| `/` | Focus the search box |
+| `Enter` | Search (in box) / open conversation (in list) |
+| `↑` `↓` `j` `k` | Move / scroll |
+| `Esc` | Back to the list |
+| `q` | Quit |
 
 ## Index
 
@@ -173,7 +198,7 @@ uv sync --extra topics
 # Analytics with DuckDB + Parquet
 uv sync --extra analytics
 
-# Terminal UI (coming soon)
+# Terminal UI
 uv sync --extra tui
 
 # MCP server for Claude Desktop (coming soon)
