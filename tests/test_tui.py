@@ -14,7 +14,7 @@ import pytest
 pytest.importorskip("textual")
 
 from ricoeur.db import SCHEMA_SQL  # noqa: E402
-from ricoeur.tui import RicoeurApp, ConversationScreen  # noqa: E402
+from ricoeur.tui import RicoeurApp, ConversationScreen, SplashScreen  # noqa: E402
 from textual.widgets import DataTable, Static  # noqa: E402
 
 
@@ -128,6 +128,33 @@ def test_open_conversation_renders(populated_home):
             await pilot.press("escape")
             await pilot.pause()
             assert not isinstance(app.screen, ConversationScreen)
+
+    _run(scenario())
+
+
+def test_splash_disabled_by_default_under_test(populated_home):
+    """The opening animation is gated on an interactive TTY, so the headless
+    pilot lands straight on the browse screen."""
+    async def scenario():
+        app = RicoeurApp(home=populated_home)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert not isinstance(app.screen, SplashScreen)
+
+    _run(scenario())
+
+
+def test_splash_shows_then_skips_to_browse(populated_home):
+    """When enabled, the splash mounts on top and any key skips to the app."""
+    async def scenario():
+        app = RicoeurApp(home=populated_home, splash=True)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            assert isinstance(app.screen, SplashScreen)
+            await pilot.press("space")          # any key skips
+            await pilot.pause(0.5)              # allow the fade-out to settle
+            assert not isinstance(app.screen, SplashScreen)
+            assert app.query_one("#results", DataTable).row_count == 2
 
     _run(scenario())
 

@@ -9,7 +9,9 @@ Launch with ``ricoeur tui`` (requires ``pip install 'ricoeur[tui]'``).
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -19,10 +21,11 @@ from .search import search_dispatch
 
 try:
     from rich.markdown import Markdown as RichMarkdown
+    from rich.text import Text
     from textual import on
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import VerticalScroll
+    from textual.containers import Vertical, VerticalScroll
     from textual.screen import Screen
     from textual.widgets import (
         DataTable,
@@ -122,6 +125,167 @@ class ConversationScreen(Screen):
         self.query_one("#conversation-body", VerticalScroll).scroll_up()
 
 
+# ── Startup splash ───────────────────────────────────────────────────────────
+
+# ANSI_Shadow wordmark — painted on, left to right, when the TUI opens.
+_WORDMARK = [
+    "██████╗ ██╗ ██████╗ ██████╗ ███████╗██╗   ██╗██████╗ ",
+    "██╔══██╗██║██╔════╝██╔═══██╗██╔════╝██║   ██║██╔══██╗",
+    "██████╔╝██║██║     ██║   ██║█████╗  ██║   ██║██████╔╝",
+    "██╔══██╗██║██║     ██║   ██║██╔══╝  ██║   ██║██╔══██╗",
+    "██║  ██║██║╚██████╗╚██████╔╝███████╗╚██████╔╝██║  ██║",
+    "╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝",
+]
+_WORDMARK_NARROW = ["r  i  c  o  e  u  r"]
+_TAGLINE = "your conversation archive"
+
+# Palette (mirrors the website).
+_EMERALD = "#52b788"
+_EMERALD_DIM = "#2d6a4f"
+_TERRACOTTA = "#d4916f"
+_MUTED = "#8a9b93"
+
+# Animation cadence (frames at _FPS). Total ≈ 2.5s including the fade-out.
+_FPS = 24
+_WIPE_FRAMES = 12     # wordmark painted on by ~0.5s
+_TAG_START = 15       # tagline begins typing
+_TAG_FRAMES = 22      # …and finishes ~0.9s later
+_FOOT_START = 40      # conversation count fades in
+_END_FRAME = 54       # ~2.25s, then a 0.3s fade-out
+
+
+class SplashScreen(Screen):
+    """A brief, skippable opening animation shown when the TUI launches."""
+
+    CSS = """
+    SplashScreen { align: center middle; background: #0f1c17; }
+    #splash-card { width: auto; height: auto; align: center middle; }
+    #splash-mark { width: auto; }
+    #splash-rule { width: auto; color: #d4916f; opacity: 0; margin-top: 1; }
+    #splash-tag  { width: auto; color: #8a9b93; margin-top: 1; }
+    #splash-foot { width: auto; color: #52b788; opacity: 0; margin-top: 1; }
+    #splash-hint {
+        dock: bottom; width: 100%; text-align: center;
+        color: #3a4d45; padding-bottom: 1;
+    }
+    """
+
+    def __init__(self, count: Optional[int] = None) -> None:
+        super().__init__()
+        self._count = count
+        self._frame = 0
+        self._settled = False
+        self._done = False
+        self._timer = None
+        self._mark = list(_WORDMARK)
+        self._mark_w = max(len(line) for line in self._mark)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="splash-card"):
+            yield Static("", id="splash-mark")
+            yield Static("", id="splash-rule")
+            yield Static("", id="splash-tag")
+            yield Static("", id="splash-foot")
+        yield Static("press any key to skip", id="splash-hint")
+
+    def on_mount(self) -> None:
+        w, h = self.size.width, self.size.height
+        # Tiny terminals: don't bother — go straight to the app.
+        if w < 16 or h < 8:
+            self._finish()
+            return
+        if w < len(_WORDMARK[0]) + 4:
+            self._mark = list(_WORDMARK_NARROW)
+        self._mark_w = max(len(line) for line in self._mark)
+        self._mark = [line.ljust(self._mark_w) for line in self._mark]
+
+        self.query_one("#splash-rule", Static).update("─" * min(self._mark_w, 38))
+        self._timer = self.set_interval(1 / _FPS, self._tick)
+
+    # ── Frame rendering ───────────────────────────────────────────────────
+
+    def _mark_text(self, reveal: int, settled: bool) -> Text:
+        """The wordmark revealed up to ``reveal`` columns. Until settled, the
+        leading edge glows terracotta (the 'pen'); the painted body trails in
+        dim emerald, then brightens once fully revealed."""
+        head = 3
+        t = Text(no_wrap=True)
+        for idx, line in enumerate(self._mark):
+            if idx:
+                t.append("\n")
+            if settled:
+                t.append(line, style=f"bold {_EMERALD}")
+                continue
+            shown = line[:reveal]
+            if reveal > head:
+                t.append(shown[: reveal - head], style=f"bold {_EMERALD_DIM}")
+                t.append(shown[reveal - head:], style=f"bold {_TERRACOTTA}")
+            else:
+                t.append(shown, style=f"bold {_TERRACOTTA}")
+            t.append(" " * (self._mark_w - reveal))  # keep the block width stable
+        return t
+
+    def _tag_text(self, n: int, cursor: bool) -> Text:
+        t = Text(style=_MUTED)
+        t.append(_TAGLINE[:n])
+        if cursor:
+            t.append("▌", style=_EMERALD)
+        return t
+
+    def _foot_text(self) -> Text:
+        if self._count:
+            return Text(f"✦  {self._count:,} conversations  ✦", style=_EMERALD)
+        return Text("✦  opening your archive  ✦", style=_EMERALD)
+
+    def _tick(self) -> None:
+        if self._done:
+            return
+        self._frame += 1
+        f = self._frame
+
+        if f <= _WIPE_FRAMES:
+            reveal = round(self._mark_w * f / _WIPE_FRAMES)
+            self.query_one("#splash-mark", Static).update(self._mark_text(reveal, False))
+        elif not self._settled:
+            self._settled = True
+            self.query_one("#splash-mark", Static).update(self._mark_text(self._mark_w, True))
+            self.query_one("#splash-rule", Static).styles.animate(
+                "opacity", value=1.0, duration=0.4
+            )
+
+        if f >= _TAG_START:
+            n = min(len(_TAGLINE), round((f - _TAG_START) * len(_TAGLINE) / _TAG_FRAMES))
+            self.query_one("#splash-tag", Static).update(
+                self._tag_text(n, cursor=(f // 6) % 2 == 0)
+            )
+
+        if f == _FOOT_START:
+            foot = self.query_one("#splash-foot", Static)
+            foot.update(self._foot_text())
+            foot.styles.animate("opacity", value=1.0, duration=0.5)
+
+        if f >= _END_FRAME:
+            self._finish()
+
+    # ── Teardown ──────────────────────────────────────────────────────────
+
+    def _finish(self) -> None:
+        if self._done:
+            return
+        self._done = True
+        if self._timer is not None:
+            self._timer.stop()
+        try:
+            self.styles.animate("opacity", value=0.0, duration=0.3, on_complete=self.dismiss)
+        except Exception:  # pragma: no cover - fade is cosmetic
+            self.dismiss()
+
+    def on_key(self, event) -> None:
+        # Any key skips the intro.
+        event.stop()
+        self._finish()
+
+
 # ── Main search / browse screen ──────────────────────────────────────────────
 
 
@@ -156,7 +320,7 @@ class RicoeurApp(App):
         Binding("enter", "open_selected", "Open", show=False),
     ]
 
-    def __init__(self, home: Optional[Path] = None) -> None:
+    def __init__(self, home: Optional[Path] = None, splash: Optional[bool] = None) -> None:
         super().__init__()
         self._home = home or get_home()
         self._conn = get_connection(self._home)
@@ -166,6 +330,13 @@ class RicoeurApp(App):
         self._device = embed_cfg.get("device", "auto")
         # Maps the visible row index → conversation id
         self._row_ids: list[str] = []
+        # Show the opening animation only for real interactive terminals
+        # (so it never disrupts piped output or the headless test pilot),
+        # unless explicitly overridden or disabled via RICOEUR_NO_SPLASH.
+        if splash is None:
+            disabled = os.environ.get("RICOEUR_NO_SPLASH", "").lower() in ("1", "true", "yes")
+            splash = not disabled and bool(getattr(sys.stdout, "isatty", lambda: False)())
+        self._splash = splash
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -178,6 +349,22 @@ class RicoeurApp(App):
 
     def on_mount(self) -> None:
         self._show_recent()
+        if self._splash:
+            self.push_screen(SplashScreen(self._conversation_count()), self._after_splash)
+
+    def _conversation_count(self) -> Optional[int]:
+        try:
+            return self._conn.execute(
+                "SELECT COUNT(*) FROM conversations"
+            ).fetchone()[0]
+        except sqlite3.Error:
+            return None
+
+    def _after_splash(self, _result: object = None) -> None:
+        try:
+            self._table().focus()
+        except Exception:  # pragma: no cover - focus is best-effort
+            pass
 
     # ── Populating the table ──────────────────────────────────────────────
 

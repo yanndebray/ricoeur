@@ -4,6 +4,20 @@
 
 *Named after Paul Ricoeur, whose work on narrative identity argued that we understand ourselves through the stories we construct from our lived experience. ricoeur reconstructs the narrative of your intellectual life from thousands of AI conversations.*
 
+```
+██████╗ ██╗ ██████╗ ██████╗ ███████╗██╗   ██╗██████╗
+██╔══██╗██║██╔════╝██╔═══██╗██╔════╝██║   ██║██╔══██╗
+██████╔╝██║██║     ██║   ██║█████╗  ██║   ██║██████╔╝
+██╔══██╗██║██║     ██║   ██║██╔══╝  ██║   ██║██╔══██╗
+██║  ██║██║╚██████╗╚██████╔╝███████╗╚██████╔╝██║  ██║
+╚═╝  ╚═╝╚═╝ ╚═════╝ ╚═════╝ ╚══════╝ ╚═════╝ ╚═╝  ╚═╝
+              ──────────────────────────
+                your conversation archive
+```
+
+> The wordmark above is painted on as a brief opening animation when you launch
+> `ricoeur tui`. Press any key to skip it, or set `RICOEUR_NO_SPLASH=1` to disable.
+
 ## Quickstart
 
 ```bash
