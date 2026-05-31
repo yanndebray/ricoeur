@@ -9,7 +9,11 @@ import zipfile
 import pytest
 
 from ricoeur.db import SCHEMA_SQL
-from ricoeur.importers.claude import import_claude, _extract_content
+from ricoeur.importers.claude import (
+    UNSUPPORTED_BLOCK,
+    import_claude,
+    _extract_content,
+)
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -249,6 +253,187 @@ def test_extract_content_falls_back_to_blocks():
 
 def test_extract_content_string_content():
     assert _extract_content({"content": "plain string"}) == "plain string"
+
+
+# ── Unsupported-block (placeholder) handling — issue #17 ────────────────────
+
+
+def test_placeholder_text_recovered_from_blocks():
+    """A `text` field contaminated with the unsupported-block placeholder is
+    rebuilt from the structured content (here an artifact carrying real code)."""
+    msg = {
+        "text": (
+            "Here's the app:\n```\n" + UNSUPPORTED_BLOCK + "\n```\nDone."
+        ),
+        "content": [
+            {"type": "text", "text": "Here's the app:"},
+            {
+                "type": "tool_use",
+                "name": "artifacts",
+                "input": {
+                    "title": "Weather Fit",
+                    "language": "matlab",
+                    "content": "x = polyfit(t, y, 3);",
+                },
+            },
+            {"type": "text", "text": "Done."},
+        ],
+    }
+    out = _extract_content(msg)
+    assert UNSUPPORTED_BLOCK not in out
+    assert "polyfit(t, y, 3)" in out
+    assert "Weather Fit" in out
+    assert "```matlab" in out
+    assert "Here's the app:" in out and "Done." in out
+
+
+def test_placeholder_text_stripped_when_no_blocks():
+    """When only the flattened `text` survives, the placeholder noise (and the
+    empty fence around it) is stripped, keeping the real prose."""
+    msg = {
+        "text": (
+            "I'll count the r's.\n```\n"
+            + UNSUPPORTED_BLOCK
+            + "\n```\n\nThere are 3 r's."
+        )
+    }
+    out = _extract_content(msg)
+    assert UNSUPPORTED_BLOCK not in out
+    assert "```" not in out  # the empty placeholder fence is gone
+    assert "I'll count the r's." in out
+    assert "There are 3 r's." in out
+
+
+def test_thinking_block_is_labelled_as_blockquote():
+    """Thinking renders as a labelled Markdown blockquote, distinct from the
+    response text."""
+    msg = {
+        "text": "",
+        "content": [
+            {"type": "thinking", "thinking": "Let me reason.\nStep two."},
+            {"type": "text", "text": "The final answer is 42."},
+        ],
+    }
+    out = _extract_content(msg)
+    assert "💭 *Thinking…*" in out
+    assert "> Let me reason." in out  # thinking lines are quoted
+    assert "> Step two." in out
+    # The response itself is NOT quoted.
+    assert "The final answer is 42." in out
+    assert "> The final answer" not in out
+
+
+def test_thinking_labelled_even_when_flattened_text_is_clean():
+    """A clean flattened `text` is overridden so thinking can be called out."""
+    msg = {
+        "text": "The final answer is 42.",
+        "content": [
+            {"type": "thinking", "thinking": "secret reasoning"},
+            {"type": "text", "text": "The final answer is 42."},
+        ],
+    }
+    out = _extract_content(msg)
+    assert "💭 *Thinking…*" in out
+    assert "secret reasoning" in out
+
+
+def test_tool_use_is_labelled():
+    msg = {
+        "text": "",
+        "content": [
+            {
+                "type": "tool_use",
+                "name": "repl",
+                "input": {"code": "print(65)", "language": "python"},
+            }
+        ],
+    }
+    out = _extract_content(msg)
+    assert "🛠️ **Tool · repl**" in out
+    assert "```python" in out
+    assert "print(65)" in out
+
+
+def test_code_execution_tool_use_recovered():
+    msg = {
+        "text": UNSUPPORTED_BLOCK,
+        "content": [
+            {"type": "tool_use", "name": "repl", "input": {"code": "print(65)"}},
+        ],
+    }
+    out = _extract_content(msg)
+    assert "print(65)" in out
+    assert UNSUPPORTED_BLOCK not in out
+
+
+def test_interface_only_tool_use_renders_nothing():
+    """A tool_use with no code/content (e.g. web search) contributes nothing."""
+    msg = {
+        "text": "  ",
+        "content": [
+            {"type": "tool_use", "name": "web_search", "input": {"query": "x"}},
+            {"type": "text", "text": "the answer"},
+        ],
+    }
+    out = _extract_content(msg)
+    assert out.strip() == "the answer"
+
+
+def test_update_flag_refreshes_message_content(conn, tmp_path):
+    """Re-importing with --update replaces stale message content — the recovery
+    path for conversations imported before the placeholder fix."""
+    stale_text = "Here's the app:\n```\n" + UNSUPPORTED_BLOCK + "\n```"
+    stale = [
+        _conv(
+            "conv-x",
+            "Artifact chat",
+            [_msg("mx", "assistant", text=stale_text)],
+        )
+    ]
+    p = tmp_path / "conversations.json"
+    p.write_text(json.dumps(stale))
+    import_claude(conn, p)
+    before = conn.execute(
+        "SELECT content FROM messages WHERE id = 'mx'"
+    ).fetchone()["content"]
+    # No structured blocks to recover from → placeholder noise is stripped,
+    # leaving just the prose.
+    assert UNSUPPORTED_BLOCK not in before
+    assert "Here's the app:" in before
+
+    # The real export carries structured blocks; re-import with update.
+    fixed = [
+        _conv(
+            "conv-x",
+            "Artifact chat",
+            [
+                _msg(
+                    "mx",
+                    "assistant",
+                    text=stale_text,
+                    content=[
+                        {"type": "text", "text": "Here's the app:"},
+                        {
+                            "type": "tool_use",
+                            "name": "artifacts",
+                            "input": {"language": "python", "content": "print(65)"},
+                        }
+                    ],
+                ),
+            ],
+        )
+    ]
+    p.write_text(json.dumps(fixed))
+    import_claude(conn, p, update=True)
+
+    after = conn.execute(
+        "SELECT content FROM messages WHERE id = 'mx'"
+    ).fetchone()["content"]
+    assert UNSUPPORTED_BLOCK not in after
+    assert "print(65)" in after
+    # No duplicate rows, and the recovered code block is indexed.
+    assert conn.execute("SELECT COUNT(*) n FROM messages WHERE id='mx'").fetchone()["n"] == 1
+    assert conn.execute("SELECT COUNT(*) n FROM code_blocks").fetchone()["n"] == 1
 
 
 def test_extract_content_empty():

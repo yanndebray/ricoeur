@@ -7,6 +7,7 @@ Claude exports are flat arrays of conversations with messages.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import zipfile
 from pathlib import Path
@@ -16,10 +17,22 @@ from rich.progress import Progress
 
 from .base import (
     ImportStats,
+    delete_conversation_messages,
     insert_conversation,
     insert_message,
     make_message_id,
     update_conversation_counts,
+)
+
+# Claude's export flattens content blocks it can't render (artifacts, the
+# code-execution / analysis tool, …) into this literal placeholder inside the
+# message's ``text`` field. When we see it, the flattened text is unreliable
+# and we reconstruct from the structured ``content`` blocks instead.
+UNSUPPORTED_BLOCK = "This block is not supported on your current device yet."
+
+# A fenced block whose only body is the placeholder — strip the whole fence.
+_PLACEHOLDER_FENCE_RE = re.compile(
+    r"```[^\n]*\n[ \t]*" + re.escape(UNSUPPORTED_BLOCK) + r"[ \t]*\n```\n?"
 )
 
 
@@ -93,6 +106,10 @@ def _import_one(
         stats.new += 1
         return
 
+    existed = conn.execute(
+        "SELECT 1 FROM conversations WHERE id = ?", (conv_id,)
+    ).fetchone()
+
     inserted = insert_conversation(
         conn,
         id=conv_id,
@@ -109,6 +126,11 @@ def _import_one(
     else:
         stats.skipped += 1
         return
+
+    # On --update, clear the old messages so the re-extracted content
+    # (e.g. recovered artifact/code blocks) actually replaces the stale rows.
+    if existed and update:
+        delete_conversation_messages(conn, conv_id)
 
     # Claude exports have a flat "chat_messages" array
     messages = conv.get("chat_messages", conv.get("messages", []))
@@ -136,32 +158,108 @@ def _import_one(
 def _extract_content(msg: dict[str, Any]) -> str:
     """Extract text from a Claude message.
 
-    Claude's export gives each message a flattened, human-readable ``text``
-    field that already concatenates the visible response and (expanded)
-    thinking while omitting tool-call noise. Prefer it; fall back to
-    reconstructing from the structured ``content`` blocks when it is absent.
+    Claude's export gives each message a flattened ``text`` field, but it mashes
+    reasoning, response, and tool activity into one undifferentiated string. We
+    rebuild from the structured ``content`` blocks whenever they carry thinking
+    or tool activity — so those can be labelled distinctly — or when the
+    flattened text is contaminated by the ``UNSUPPORTED_BLOCK`` placeholder.
+    Otherwise the clean flattened text is authoritative. As a last resort we
+    salvage the flattened text with placeholder noise stripped out.
     """
-    # Claude messages can have "text" directly or "content" as a list of blocks
     text = msg.get("text")
-    if text and text.strip():
-        return text
-
+    has_text = bool(text and text.strip())
     content = msg.get("content", "")
-    if isinstance(content, str):
-        return content
 
-    if isinstance(content, list):
-        parts = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict):
-                btype = block.get("type")
-                if btype == "text":
-                    parts.append(block.get("text", ""))
-                elif btype == "thinking":
-                    parts.append(block.get("thinking", ""))
-                # tool_use / tool_result blocks are interface noise — skip them
-        return "\n".join(p for p in parts if p)
+    contaminated = has_text and UNSUPPORTED_BLOCK in text
+    if _has_rich_blocks(content) or contaminated or not has_text:
+        rebuilt = _from_blocks(content)
+        if rebuilt.strip():
+            return rebuilt
 
+    if has_text and not contaminated:
+        return text
+    if has_text:
+        return _strip_placeholder(text)
     return ""
+
+
+def _has_rich_blocks(content: Any) -> bool:
+    """True if the structured content has thinking or tool blocks worth
+    labelling distinctly (so we should rebuild from blocks rather than trust
+    the flattened text)."""
+    if not isinstance(content, list):
+        return False
+    return any(
+        isinstance(b, dict) and b.get("type") in ("thinking", "tool_use")
+        for b in content
+    )
+
+
+def _from_blocks(content: Any) -> str:
+    """Reconstruct message text from Claude's structured ``content`` blocks."""
+    if isinstance(content, str):
+        return _strip_placeholder(content)
+    if not isinstance(content, list):
+        return ""
+
+    parts = []
+    for block in content:
+        if isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict):
+            parts.append(_render_block(block))
+    return "\n\n".join(p for p in parts if p and p.strip())
+
+
+def _render_block(block: dict[str, Any]) -> str:
+    btype = block.get("type")
+    if btype == "text":
+        return _strip_placeholder(block.get("text", ""))
+    if btype == "thinking":
+        return _render_thinking(block.get("thinking", ""))
+    if btype == "tool_use":
+        return _render_tool_use(block)
+    # tool_result and other interface blocks are noise — skip them.
+    return ""
+
+
+def _render_thinking(text: str) -> str:
+    """Render a thinking block as a Markdown blockquote so it reads as a
+    de-emphasized aside (Rich draws a dim left bar) clearly separated from
+    Claude's actual response."""
+    text = text.strip()
+    if not text:
+        return ""
+    quoted = "\n".join(f"> {line}" if line.strip() else ">" for line in text.splitlines())
+    return f"> 💭 *Thinking…*\n>\n{quoted}"
+
+
+def _render_tool_use(block: dict[str, Any]) -> str:
+    """Render a tool-use block that carries real content (artifacts, the
+    code-execution tool) as a labelled, fenced code block. Interface-only tools
+    such as web search carry no code/content and render to nothing.
+    """
+    inp = block.get("input")
+    if not isinstance(inp, dict):
+        return ""
+    body = inp.get("code") or inp.get("content")
+    if not isinstance(body, str) or not body.strip():
+        return ""
+    name = block.get("name") or "tool"
+    lang = inp.get("language") or inp.get("lang") or ""
+    title = inp.get("title")
+    label = f"🛠️ **Tool · {name}**"
+    if isinstance(title, str) and title:
+        label += f" — {title}"
+    return f"{label}\n\n```{lang}\n{body}\n```"
+
+
+def _strip_placeholder(text: str) -> str:
+    """Remove ``UNSUPPORTED_BLOCK`` placeholders (and the empty fences that
+    wrap them) from flattened export text."""
+    if not text or UNSUPPORTED_BLOCK not in text:
+        return text
+    text = _PLACEHOLDER_FENCE_RE.sub("", text)
+    text = text.replace(UNSUPPORTED_BLOCK, "")
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()

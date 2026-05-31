@@ -107,6 +107,22 @@ def insert_message(
             )
 
 
+def delete_conversation_messages(conn: sqlite3.Connection, conv_id: str) -> None:
+    """Remove a conversation's messages (and their code blocks) for a clean
+    re-import. The FTS index stays in sync via the ``messages`` delete trigger.
+    """
+    msg_ids = [
+        r[0] for r in conn.execute(
+            "SELECT id FROM messages WHERE conv_id = ?", (conv_id,)
+        )
+    ]
+    if msg_ids:
+        conn.executemany(
+            "DELETE FROM code_blocks WHERE msg_id = ?", [(m,) for m in msg_ids]
+        )
+    conn.execute("DELETE FROM messages WHERE conv_id = ?", (conv_id,))
+
+
 def update_conversation_counts(conn: sqlite3.Connection) -> None:
     """Update message_count on all conversations."""
     conn.execute(
