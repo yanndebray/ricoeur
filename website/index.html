@@ -449,6 +449,68 @@
     .code-block .string { color: #a8d8b9; }
     .code-block .output { color: #8a9b93; }
 
+    /* ── Interactive TUI emulation ───────────────────────────────────── */
+    .tui {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: #d4d4d4;
+    }
+    .tui-bar {
+      background: var(--emerald);
+      color: #fff;
+      text-align: center;
+      padding: 5px 0;
+      border-radius: 6px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .tui-bar-sub { color: #b6e0c4; font-weight: 400; }
+    .tui-input {
+      border: 1px solid #3a4d45;
+      border-radius: 6px;
+      padding: 6px 12px;
+      margin: 10px 0 8px;
+      color: #c7d3cd;
+    }
+    .tui-dim { color: #6a7d74; }
+    .tui-caret {
+      color: var(--emerald-light);
+      animation: tui-blink 1.1s step-end infinite;
+    }
+    @keyframes tui-blink { 50% { opacity: 0; } }
+    .tui-status { color: #6a7d74; padding: 0 4px 8px; }
+    .tui-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .tui-table th {
+      text-align: left;
+      color: var(--emerald-light);
+      border-bottom: 1px solid #3a4d45;
+      padding: 5px 10px;
+      font-weight: 600;
+    }
+    .tui-table td {
+      padding: 4px 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tui-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+    .tui-row-sel td, .tui-table tbody tr:nth-child(even).tui-row-sel td {
+      background: var(--emerald);
+      color: #fff;
+    }
+    .tui-footer {
+      margin-top: 12px;
+      border-top: 1px solid #3a4d45;
+      padding-top: 8px;
+      color: #8a9b93;
+    }
+    .tui-key { color: var(--terracotta-light); font-weight: 600; }
+
     /* ── CLI Reference ───────────────────────────────────────────────── */
     .cli-grid {
       display: grid;
@@ -745,6 +807,7 @@
         <div class="tab-bar">
           <button class="tab-btn active" onclick="switchTab('terminal')">Terminal</button>
           <button class="tab-btn" onclick="switchTab('search')">Search Examples</button>
+          <button class="tab-btn" onclick="switchTab('tui')">Interactive TUI</button>
         </div>
         <div id="tab-terminal" class="code-block active">
 <pre><span class="comment"># Install ricoeur</span>
@@ -781,6 +844,31 @@
 <span class="command">ricoeur search</span> <span class="string">"async def"</span> <span class="flag">--code</span> <span class="flag">--limit</span> 10
 
 <span class="comment"># More output formats coming: json, full, ids</span></pre>
+        </div>
+        <div id="tab-tui" class="code-block">
+          <div class="tui">
+            <div class="tui-bar">ricoeur <span class="tui-bar-sub">— your conversation archive</span></div>
+            <div class="tui-input">Search your conversations… <span class="tui-dim">(Enter to search, empty = recent)</span><span class="tui-caret">▏</span></div>
+            <div class="tui-status">3,756 conversations · newest first</div>
+            <table class="tui-table">
+              <thead>
+                <tr><th>Date</th><th>Platform</th><th>Msgs</th><th>Title</th></tr>
+              </thead>
+              <tbody>
+                <tr class="tui-row-sel"><td>2026-05-30</td><td>chatgpt</td><td>24</td><td>Deploying FastAPI on Fly.io</td></tr>
+                <tr><td>2026-05-29</td><td>claude</td><td>8</td><td>Rust lifetimes, explained simply</td></tr>
+                <tr><td>2026-05-29</td><td>chatgpt</td><td>41</td><td>Designing a hybrid search ranker</td></tr>
+                <tr><td>2026-05-28</td><td>claude</td><td>15</td><td>SQLite FTS5 vs. vector embeddings</td></tr>
+                <tr><td>2026-05-27</td><td>chatgpt</td><td>6</td><td>Refactoring a Textual DataTable</td></tr>
+                <tr><td>2026-05-26</td><td>claude</td><td>33</td><td>BERTopic for conversation clustering</td></tr>
+                <tr><td>2026-05-25</td><td>chatgpt</td><td>12</td><td>Async patterns in modern Python</td></tr>
+                <tr><td>2026-05-24</td><td>claude</td><td>19</td><td>Local-first app architecture notes</td></tr>
+              </tbody>
+            </table>
+            <div class="tui-footer">
+              <span class="tui-key">q</span> Quit&nbsp;&nbsp;&nbsp;<span class="tui-key">/</span> Search&nbsp;&nbsp;&nbsp;<span class="tui-key">↑↓</span> Navigate&nbsp;&nbsp;&nbsp;<span class="tui-key">↵</span> Open
+            </div>
+          </div>
         </div>
       </div>
     </div>
