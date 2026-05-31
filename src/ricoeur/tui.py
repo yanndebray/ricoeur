@@ -41,15 +41,20 @@ except ModuleNotFoundError as exc:  # pragma: no cover - exercised via CLI
 # ── Data helpers ───────────────────────────────────────────────────────────
 
 
-def _recent_conversations(conn: sqlite3.Connection, limit: int = 50) -> list[sqlite3.Row]:
-    """Most recently created conversations — the default browse view."""
-    return conn.execute(
-        """SELECT id, title, platform, model, created_at, message_count
-           FROM conversations
-           ORDER BY created_at DESC
-           LIMIT ?""",
-        (limit,),
-    ).fetchall()
+def _recent_conversations(
+    conn: sqlite3.Connection, limit: Optional[int] = None
+) -> list[sqlite3.Row]:
+    """Conversations newest-first — the default browse view.
+
+    With ``limit=None`` (the default) every conversation is returned so the
+    table is fully scrollable; pass an integer to cap the result set.
+    """
+    sql = """SELECT id, title, platform, model, created_at, message_count
+             FROM conversations
+             ORDER BY created_at DESC"""
+    if limit is None:
+        return conn.execute(sql).fetchall()
+    return conn.execute(sql + "\n           LIMIT ?", (limit,)).fetchall()
 
 
 def _conversation(conn: sqlite3.Connection, conv_id: str) -> Optional[sqlite3.Row]:
@@ -200,7 +205,7 @@ class RicoeurApp(App):
             [r["id"] for r in rows],
         )
         if n:
-            self._set_status(f"{n:,} conversations · showing {len(rows)} most recent")
+            self._set_status(f"{n:,} conversations · newest first")
         else:
             self._set_status("No conversations yet — import an export with `ricoeur import`.")
 
