@@ -33,6 +33,9 @@ uv run ricoeur import chatgpt ~/Downloads/chatgpt-export/conversations.json
 # ...or your Claude export (Settings > Privacy > Export data)
 uv run ricoeur import claude ~/Downloads/claude-export/conversations.json
 
+# ...or your Claude Code sessions — no export needed, they're already on disk
+uv run ricoeur import claude-code
+
 # Build the intelligence layer (language detection, embeddings, analytics)
 uv run ricoeur index
 
@@ -50,6 +53,7 @@ uv run ricoeur search "thermal simulation"
 | `ricoeur init` | Initialize database and config at `~/.ricoeur/` |
 | `ricoeur import chatgpt <path>` | Import from ChatGPT export (.json or .zip) |
 | `ricoeur import claude <path>` | Import from Claude export (.json or .zip) |
+| `ricoeur import claude-code [path]` | Import Claude Code sessions from `~/.claude/projects` |
 | `ricoeur search <query>` | Search across all conversations (hybrid by default) |
 | `ricoeur show <id>` | Display a conversation with formatting |
 | `ricoeur stats` | Analytics dashboard |
@@ -192,6 +196,50 @@ ricoeur import claude conversations.json --update
 ChatGPT and Claude exports are both supported. Each platform ships a
 `conversations.json` (sometimes inside a `.zip`) — point ricoeur at either the
 JSON file or the zip and it will find the conversations.
+
+### Claude Code sessions
+
+Claude Code needs no export step. It writes every session to
+`~/.claude/projects/<project>/<session>.jsonl` as it works, so ricoeur reads
+them straight from disk:
+
+```bash
+# Import every session (defaults to ~/.claude/projects)
+ricoeur import claude-code
+
+# Just one repo's sessions
+ricoeur import claude-code --project ricoeur
+
+# A single project directory, or one session file
+ricoeur import claude-code ~/.claude/projects/-Users-me-Devel-ricoeur
+```
+
+Sessions are append-only and may be mid-write, so re-running the import is
+cheap and safe: unchanged session files are skipped, a session that has grown
+gains only its new messages, and nothing is ever replaced or deleted. Run it
+again whenever you want to catch up.
+
+These transcripts are archived as the platform `claude-code`, tagged with the
+repo they ran in:
+
+```bash
+ricoeur search "migration" --platform claude-code
+ricoeur stats --project ricoeur
+```
+
+What gets archived is *conversation*: your prompts, Claude's replies, and the
+code it wrote (`Bash` commands, `Write` contents, `Edit` diffs — all searchable
+via `--code`). Tool output fed back to the model is dropped by default, since
+it would outnumber the actual conversation roughly 30 to 1 and turn every
+`--role user` search into a wall of command output. Two flags opt back in:
+
+```bash
+# Keep tool output too — a complete audit trail, much larger
+ricoeur import claude-code --include-tool-results
+
+# Include subagent (Task/Agent) transcripts
+ricoeur import claude-code --include-sidechains
+```
 
 > **Coming soon:** Gemini and custom JSON imports.
 

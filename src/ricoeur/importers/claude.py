@@ -21,6 +21,8 @@ from .base import (
     insert_conversation,
     insert_message,
     make_message_id,
+    render_thinking,
+    render_tool_block,
     update_conversation_counts,
 )
 
@@ -216,22 +218,11 @@ def _render_block(block: dict[str, Any]) -> str:
     if btype == "text":
         return _strip_placeholder(block.get("text", ""))
     if btype == "thinking":
-        return _render_thinking(block.get("thinking", ""))
+        return render_thinking(block.get("thinking", ""))
     if btype == "tool_use":
         return _render_tool_use(block)
     # tool_result and other interface blocks are noise — skip them.
     return ""
-
-
-def _render_thinking(text: str) -> str:
-    """Render a thinking block as a Markdown blockquote so it reads as a
-    de-emphasized aside (Rich draws a dim left bar) clearly separated from
-    Claude's actual response."""
-    text = text.strip()
-    if not text:
-        return ""
-    quoted = "\n".join(f"> {line}" if line.strip() else ">" for line in text.splitlines())
-    return f"> 💭 *Thinking…*\n>\n{quoted}"
 
 
 def _render_tool_use(block: dict[str, Any]) -> str:
@@ -248,10 +239,9 @@ def _render_tool_use(block: dict[str, Any]) -> str:
     name = block.get("name") or "tool"
     lang = inp.get("language") or inp.get("lang") or ""
     title = inp.get("title")
-    label = f"🛠️ **Tool · {name}**"
-    if isinstance(title, str) and title:
-        label += f" — {title}"
-    return f"{label}\n\n```{lang}\n{body}\n```"
+    return render_tool_block(
+        name, body, lang=lang, title=title if isinstance(title, str) and title else None
+    )
 
 
 def _strip_placeholder(text: str) -> str:
