@@ -680,7 +680,7 @@
   <section class="hero">
     <div class="container">
       <div class="animate-hero">
-        <span class="hero-badge"><span class="dot"></span> v0.4.3 · New: interactive TUI · MIT Licensed</span>
+        <span class="hero-badge"><span class="dot"></span> v0.4.4 · New: Claude &amp; Claude Code imports · MIT Licensed</span>
       </div>
       <h1 class="animate-hero">Archive. Search. <em>Understand.</em></h1>
       <p class="subtitle animate-hero">A local-first archive, search, and intelligence engine<br>for your LLM conversation history.</p>
@@ -754,7 +754,7 @@
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
           </div>
           <h3>Multi-Platform</h3>
-          <p>Import from ChatGPT and Claude today. Gemini and custom JSON imports coming soon.</p>
+          <p>ChatGPT exports, Claude exports, and Claude Code sessions read straight from disk. Gemini and custom JSON imports coming soon.</p>
         </div>
         <div class="feature-card reveal">
           <div class="feature-icon emerald">
@@ -813,7 +813,7 @@
       <div class="code-tabs reveal">
         <div class="tab-bar">
           <button class="tab-btn active" onclick="switchTab('terminal')">Terminal</button>
-          <button class="tab-btn" onclick="switchTab('claude-code')">Claude Code</button>
+          <button class="tab-btn" onclick="switchTab('claude')">Claude</button>
           <button class="tab-btn" onclick="switchTab('search')">Search Examples</button>
           <button class="tab-btn" onclick="switchTab('tui')">Interactive TUI</button>
         </div>
@@ -831,11 +831,24 @@
 <span class="output">  Parsed:       3,756 conversations (42,618 messages)</span>
 <span class="output">  New:          3,756</span>
 
+<span class="comment"># ...and your Claude export</span>
+<span class="command">ricoeur import claude</span> <span class="string">~/Downloads/claude-export.zip</span>
+<span class="output">  Parsed:         412 conversations (5,908 messages)</span>
+
 <span class="comment"># Check your archive stats</span>
 <span class="command">ricoeur stats</span></pre>
         </div>
-        <div id="tab-claude-code" class="code-block">
-<pre><span class="comment"># Claude Code needs no export — sessions are already on disk</span>
+        <div id="tab-claude" class="code-block">
+<pre><span class="comment"># Claude web &amp; desktop: Settings → Privacy → Export data</span>
+<span class="command">ricoeur import claude</span> <span class="string">~/Downloads/claude-export.zip</span>
+<span class="output">Import from Claude</span>
+<span class="output">  Parsed:         412 conversations (5,908 messages)</span>
+<span class="output">  New:            412</span>
+
+<span class="comment"># Artifacts, analysis-tool code and reasoning are recovered</span>
+<span class="comment"># from the export's structured blocks, not left as placeholders</span>
+
+<span class="comment"># Claude Code needs no export — sessions are already on disk</span>
 <span class="command">ricoeur import claude-code</span>
 <span class="output">Import from Claude Code</span>
 <span class="output">  Parsed:       87 conversations (7,981 messages)</span>
@@ -850,7 +863,10 @@
 
 <span class="comment"># Sessions are tagged with the repo they ran in</span>
 <span class="command">ricoeur stats</span> <span class="flag">--project</span> ricoeur
+
+<span class="comment"># Search one platform, or all of them at once</span>
 <span class="command">ricoeur search</span> <span class="string">"schema migration"</span> <span class="flag">--platform</span> claude-code
+<span class="command">ricoeur search</span> <span class="string">"schema migration"</span>
 
 <span class="comment"># Search the code Claude Code actually wrote</span>
 <span class="command">ricoeur search</span> <span class="string">"ALTER TABLE"</span> <span class="flag">--code</span></pre>
