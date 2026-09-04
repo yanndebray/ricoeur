@@ -101,6 +101,58 @@ def import_claude_cmd(path: str, update: bool, since: Optional[str], dry_run: bo
     _print_import_stats("Claude", stats, dry_run)
 
 
+@import_cmd.command("claude-code")
+@click.argument("path", type=click.Path(exists=True), required=False)
+@click.option("--update", is_flag=True, help="Re-read every session, even unchanged ones")
+@click.option("--since", default=None, help="Only import sessions after this date (ISO format)")
+@click.option("--dry-run", is_flag=True, help="Parse and validate without writing to database")
+@click.option("--project", default=None, help="Only sessions whose project path matches this substring")
+@click.option("--include-tool-results", is_flag=True, help="Keep tool output in the transcript (much larger)")
+@click.option("--include-sidechains", is_flag=True, help="Include subagent transcripts")
+def import_claude_code_cmd(
+    path: Optional[str],
+    update: bool,
+    since: Optional[str],
+    dry_run: bool,
+    project: Optional[str],
+    include_tool_results: bool,
+    include_sidechains: bool,
+):
+    """Import Claude Code sessions from ~/.claude/projects (no export needed).
+
+    PATH is optional: pass a projects root, a single project directory, or one
+    .jsonl session file. Defaults to ~/.claude/projects.
+    """
+    from .importers.claude_code import DEFAULT_PROJECTS_DIR, import_claude_code as do_import
+
+    conn = get_connection()
+    root = Path(path) if path else DEFAULT_PROJECTS_DIR
+
+    if not root.exists():
+        console.print(
+            f"[red]No Claude Code sessions found at[/red] {root}\n"
+            "Claude Code writes them to ~/.claude/projects/ as you use it."
+        )
+        conn.close()
+        return
+
+    with Progress(console=console) as progress:
+        stats = do_import(
+            conn,
+            root,
+            update=update,
+            since=since,
+            dry_run=dry_run,
+            project=project,
+            include_tool_results=include_tool_results,
+            include_sidechains=include_sidechains,
+            progress=progress,
+        )
+
+    conn.close()
+    _print_import_stats("Claude Code", stats, dry_run)
+
+
 def _print_import_stats(platform: str, stats, dry_run: bool):
     prefix = "[dim](dry run)[/dim] " if dry_run else ""
     console.print()
@@ -111,6 +163,13 @@ def _print_import_stats(platform: str, stats, dry_run: bool):
     console.print(f"  Skipped:      {stats.skipped:,}")
     if stats.code_blocks:
         console.print(f"  Code blocks:  {stats.code_blocks:,} extracted")
+    if stats.attachments:
+        console.print(f"  Attachments:  {stats.attachments:,}")
+    if stats.malformed:
+        console.print(
+            f"  [dim]Unreadable lines: {stats.malformed:,} "
+            "(sessions still being written)[/dim]"
+        )
 
 
 # ── search ───────────────────────────────────────────────────────────────
@@ -266,6 +325,8 @@ def show(conversation_id, msg_filter, summary, code, fmt):
     console.rule(conv["title"] or "Untitled")
     console.print(f" Platform:  {conv['platform']:<16} Model:    {conv['model'] or '?'}")
     console.print(f" Date:      {(conv['created_at'] or '?')[:10]:<16} Messages: {conv['message_count'] or '?'}")
+    if conv["project"]:
+        console.print(f" Project:   {conv['project']}")
     if conv["language"]:
         console.print(f" Language:  {conv['language']}")
     console.rule()
@@ -316,10 +377,11 @@ def show(conversation_id, msg_filter, summary, code, fmt):
 @cli.command()
 @click.option("--platform", default=None)
 @click.option("--lang", default=None)
+@click.option("--project", default=None, help="Filter by project (Claude Code sessions)")
 @click.option("--since", default=None)
 @click.option("--until", default=None)
 @click.option("--format", "fmt", default="rich", type=click.Choice(["rich", "json", "csv"]))
-def stats(platform, lang, since, until, fmt):
+def stats(platform, lang, project, since, until, fmt):
     """Analytics dashboard."""
     conn = get_connection()
 
@@ -328,6 +390,9 @@ def stats(platform, lang, since, until, fmt):
     if platform:
         where_clauses.append("platform = ?")
         params.append(platform)
+    if project:
+        where_clauses.append("project = ?")
+        params.append(project)
     if lang:
         where_clauses.append("language = ?")
         params.append(lang)
@@ -354,6 +419,12 @@ def stats(platform, lang, since, until, fmt):
     languages = conn.execute(
         f"SELECT language, COUNT(*) as n FROM conversations {where} GROUP BY language ORDER BY n DESC", params
     ).fetchall()
+    projects = conn.execute(
+        f"""SELECT project, COUNT(*) as n FROM conversations {where}
+            {'AND' if where else 'WHERE'} project IS NOT NULL
+            GROUP BY project ORDER BY n DESC LIMIT 10""",
+        params,
+    ).fetchall()
 
     if fmt == "json":
         data = {
@@ -362,6 +433,7 @@ def stats(platform, lang, since, until, fmt):
             "platforms": {r["platform"]: r["n"] for r in platforms},
             "top_models": {r["model"] or "unknown": r["n"] for r in models},
             "languages": {r["language"] or "unknown": r["n"] for r in languages},
+            "top_projects": {r["project"]: r["n"] for r in projects},
         }
         click.echo(json.dumps(data, indent=2))
         conn.close()
@@ -381,6 +453,12 @@ def stats(platform, lang, since, until, fmt):
         console.print(" [bold]Top models[/bold]")
         for r in models[:8]:
             console.print(f"   {r['model'] or 'unknown':<20} {r['n']:>5}")
+
+    if projects:
+        console.print()
+        console.print(" [bold]Top projects[/bold]")
+        for r in projects[:8]:
+            console.print(f"   {r['project']:<20} {r['n']:>5}")
 
     console.print()
     conn.close()

@@ -771,6 +771,13 @@
           <p>Browse, search, and read your entire archive without leaving the terminal. Markdown-rendered conversations, instant keyword search, keyboard-driven.</p>
         </div>
         <div class="feature-card reveal">
+          <div class="feature-icon emerald">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </div>
+          <h3>Claude Code Sessions <span class="badge-new">New</span></h3>
+          <p>No export step. ricoeur reads the session logs Claude Code writes as it works, archiving your prompts, its replies, and the code it wrote — tagged with the repo each session ran in.</p>
+        </div>
+        <div class="feature-card reveal">
           <div class="feature-icon terra">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </div>
@@ -806,6 +813,7 @@
       <div class="code-tabs reveal">
         <div class="tab-bar">
           <button class="tab-btn active" onclick="switchTab('terminal')">Terminal</button>
+          <button class="tab-btn" onclick="switchTab('claude-code')">Claude Code</button>
           <button class="tab-btn" onclick="switchTab('search')">Search Examples</button>
           <button class="tab-btn" onclick="switchTab('tui')">Interactive TUI</button>
         </div>
@@ -825,6 +833,27 @@
 
 <span class="comment"># Check your archive stats</span>
 <span class="command">ricoeur stats</span></pre>
+        </div>
+        <div id="tab-claude-code" class="code-block">
+<pre><span class="comment"># Claude Code needs no export — sessions are already on disk</span>
+<span class="command">ricoeur import claude-code</span>
+<span class="output">Import from Claude Code</span>
+<span class="output">  Parsed:       87 conversations (7,981 messages)</span>
+<span class="output">  New:          83</span>
+<span class="output">  Skipped:      4</span>
+<span class="output">  Code blocks:  6,058 extracted</span>
+
+<span class="comment"># Run it again to catch up — unchanged sessions are skipped,</span>
+<span class="comment"># growing ones gain only their new messages</span>
+<span class="command">ricoeur import claude-code</span>
+<span class="output">  New:          0      Updated: 2      Skipped: 85</span>
+
+<span class="comment"># Sessions are tagged with the repo they ran in</span>
+<span class="command">ricoeur stats</span> <span class="flag">--project</span> ricoeur
+<span class="command">ricoeur search</span> <span class="string">"schema migration"</span> <span class="flag">--platform</span> claude-code
+
+<span class="comment"># Search the code Claude Code actually wrote</span>
+<span class="command">ricoeur search</span> <span class="string">"ALTER TABLE"</span> <span class="flag">--code</span></pre>
         </div>
         <div id="tab-search" class="code-block">
 <pre><span class="comment"># Hybrid search (keyword + semantic, default)</span>
@@ -889,7 +918,7 @@
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur import</div>
-          <div class="desc">Import from ChatGPT exports (.json or .zip)</div>
+          <div class="desc">Import from ChatGPT or Claude exports (.json or .zip), or Claude Code sessions straight from ~/.claude/projects</div>
         </div>
         <div class="cli-card reveal">
           <div class="cmd">ricoeur search</div>

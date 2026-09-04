@@ -105,6 +105,8 @@ class ConversationScreen(Screen):
         meta = f"`{conv['platform']}`"
         if conv["model"]:
             meta += f" · `{conv['model']}`"
+        if conv["project"]:
+            meta += f" · `{conv['project']}`"
         meta += f" · {date}"
 
         lines = [f"# {conv['title'] or 'Untitled'}", "", meta, ""]

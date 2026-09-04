@@ -8,7 +8,7 @@ from typing import Optional
 
 from .config import get_home
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS conversations (
@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS conversations (
     updated_at TEXT,
     language TEXT,
     topic_id INTEGER,
-    message_count INTEGER DEFAULT 0
+    message_count INTEGER DEFAULT 0,
+    project TEXT,
+    source_path TEXT
 );
 
 CREATE TABLE IF NOT EXISTS messages (
@@ -60,6 +62,17 @@ CREATE TABLE IF NOT EXISTS topics (
     label TEXT,
     keywords TEXT,
     count INTEGER DEFAULT 0
+);
+
+-- Per-file import bookkeeping for append-only local sources (Claude Code
+-- session logs). Purely a speed cache: message IDs make re-import idempotent,
+-- so a stale or missing row here costs time, never correctness.
+CREATE TABLE IF NOT EXISTS import_sources (
+    path TEXT PRIMARY KEY,
+    conv_id TEXT,
+    mtime REAL,
+    size INTEGER,
+    imported_at TEXT
 );
 
 CREATE TABLE IF NOT EXISTS schema_meta (
@@ -103,6 +116,7 @@ CREATE INDEX IF NOT EXISTS idx_conversations_platform ON conversations(platform)
 CREATE INDEX IF NOT EXISTS idx_conversations_language ON conversations(language);
 CREATE INDEX IF NOT EXISTS idx_conversations_created ON conversations(created_at);
 CREATE INDEX IF NOT EXISTS idx_conversations_topic ON conversations(topic_id);
+CREATE INDEX IF NOT EXISTS idx_conversations_project ON conversations(project);
 CREATE INDEX IF NOT EXISTS idx_code_blocks_msg ON code_blocks(msg_id);
 CREATE INDEX IF NOT EXISTS idx_code_blocks_lang ON code_blocks(language);
 """
@@ -113,12 +127,13 @@ def db_path(home: Optional[Path] = None) -> Path:
 
 
 def get_connection(home: Optional[Path] = None) -> sqlite3.Connection:
-    """Get a connection to the ricoeur database."""
+    """Get a connection to the ricoeur database, migrating it if needed."""
     path = db_path(home)
     conn = sqlite3.connect(str(path))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    migrate(conn)
     return conn
 
 
@@ -132,3 +147,84 @@ def init_db(home: Optional[Path] = None) -> sqlite3.Connection:
     )
     conn.commit()
     return conn
+
+
+# ── Migrations ───────────────────────────────────────────────────────────────
+#
+# ``SCHEMA_SQL`` is all ``CREATE ... IF NOT EXISTS``, so it brings a *fresh*
+# database up to the current version but silently leaves an older one behind.
+# ``migrate`` closes that gap: every step is idempotent, so it is safe to run
+# on every connection.
+
+
+def schema_version(conn: sqlite3.Connection) -> int:
+    """Read the recorded schema version (1 for pre-versioning databases)."""
+    if not _table_exists(conn, "schema_meta"):
+        return 1
+    row = conn.execute(
+        "SELECT value FROM schema_meta WHERE key = 'version'"
+    ).fetchone()
+    if row is None:
+        return 1
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return 1
+
+
+def migrate(conn: sqlite3.Connection) -> int:
+    """Bring an existing database up to ``SCHEMA_VERSION``.
+
+    Returns the resulting version. A database with no ``conversations`` table
+    is untouched — it is either brand new (``init_db`` will build it) or not a
+    ricoeur database at all.
+    """
+    if not _table_exists(conn, "conversations"):
+        return SCHEMA_VERSION
+
+    version = schema_version(conn)
+    if version >= SCHEMA_VERSION:
+        return version
+
+    if version < 2:
+        # v2: provenance for local session-log sources (Claude Code).
+        _add_column(conn, "conversations", "project", "TEXT")
+        _add_column(conn, "conversations", "source_path", "TEXT")
+        conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS import_sources (
+                path TEXT PRIMARY KEY,
+                conv_id TEXT,
+                mtime REAL,
+                size INTEGER,
+                imported_at TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_conversations_project
+                ON conversations(project);
+            """
+        )
+
+    conn.execute(
+        "INSERT OR REPLACE INTO schema_meta(key, value) VALUES (?, ?)",
+        ("version", str(SCHEMA_VERSION)),
+    )
+    conn.commit()
+    return SCHEMA_VERSION
+
+
+def _table_exists(conn: sqlite3.Connection, name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') AND name = ?",
+        (name,),
+    ).fetchone()
+    return row is not None
+
+
+def _add_column(
+    conn: sqlite3.Connection, table: str, column: str, decl: str
+) -> None:
+    """``ALTER TABLE ... ADD COLUMN``, skipped if the column already exists."""
+    # index, not name: works whether or not a row factory is installed
+    existing = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decl}")
